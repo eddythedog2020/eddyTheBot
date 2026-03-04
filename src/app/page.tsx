@@ -221,6 +221,11 @@ export default function ChatPage() {
     }
   }, [activeChat?.messages, isLoading, showSettings]);
 
+  // Clear artifact when switching chats
+  useEffect(() => {
+    setActiveArtifact(null);
+  }, [activeChatId]);
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -267,8 +272,8 @@ export default function ChatPage() {
           setActiveArtifact({ type: 'table' as any, content: tableLines.join('\n'), language: 'markdown', title: 'Table', id: Date.now().toString() });
         }
       } else {
-        // Check for fenced code blocks
-        const codeMatch = responseText.match(/```(\w+)?\n([\s\S]*?)```/);
+        // Check for fenced code blocks (handling unclosed blocks at the end of response)
+        const codeMatch = responseText.match(/```[ \t]*(\w+)?[ \t]*\n([\s\S]*?)(?:```|$)/);
         if (codeMatch) {
           setActiveArtifact({ type: 'code', content: codeMatch[2].replace(/\n$/, ''), language: codeMatch[1] || 'text', title: 'Generated Code', id: Date.now().toString() });
         }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import ArtifactPanel, { Artifact } from "@/components/ArtifactPanel";
 import WorkspaceModal from "@/components/WorkspaceModal";
 import MemoryModal from "@/components/MemoryModal";
@@ -750,6 +751,7 @@ export default function ChatPage() {
                           {msg.role === "ai" ? (
                             <div className="prose prose-invert max-w-none">
                               <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
                                 components={{
                                   table({ children, ...props }: any) {
                                     // Extract raw table text for canvas export

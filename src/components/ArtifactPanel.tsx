@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Prism from "prismjs";
 import "prismjs/themes/prism-tomorrow.css";
 // Load extra languages if needed, e.g. python, bash, json
@@ -311,7 +312,7 @@ export default function ArtifactPanel({ artifact, isOpen, onClose }: ArtifactPan
                     })()
                         : isMarkdown ? (
                             <div className="prose prose-invert max-w-none" style={{ padding: '48px 40px 40px 40px' }}>
-                                <ReactMarkdown>{artifact.content}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{artifact.content}</ReactMarkdown>
                             </div>
                         ) : isHtml ? (
                             <iframe

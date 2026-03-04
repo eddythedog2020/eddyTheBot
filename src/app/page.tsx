@@ -792,9 +792,9 @@ export default function ChatPage() {
                                       <div style={{ position: 'relative', marginTop: '16px', marginBottom: '16px' }} className="group">
                                         <div style={{
                                           position: 'absolute', top: '-8px', right: '0',
-                                          opacity: 0, transition: 'opacity 0.15s',
+                                          transition: 'opacity 0.15s',
                                           zIndex: 10,
-                                        }} className="group-[:hover]:opacity-100">
+                                        }} className="opacity-0 group-hover:opacity-100">
                                           <button
                                             onClick={() => {
                                               const md = getMarkdownTable();

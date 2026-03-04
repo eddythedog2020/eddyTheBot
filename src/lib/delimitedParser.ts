@@ -114,10 +114,64 @@ export function parseDelimitedData(text: string): { rows: string[][]; delimiter:
 }
 
 /**
+ * Normalize inline pipe tables that are squished into a single line.
+ * E.g.: "| Header1 | Header2 | | --- | --- | | val1 | val2 |"
+ * becomes separate lines for each row.
+ */
+function normalizePipeTables(text: string): string {
+    const lines = text.split('\n');
+    const result: string[] = [];
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        // Check if this line contains multiple pipe table rows squished together
+        // Pattern: "| ... | | ... |" — the "| |" between rows
+        if (trimmed.startsWith('|') && trimmed.includes('| |')) {
+            // Split on the row boundary pattern: "| |" 
+            // But we need to be careful: "| |" is literally end-of-row + start-of-next-row
+            // Strategy: split on "| |" where it acts as row separator
+            const parts = trimmed.split(/\|\s*\|/);
+
+            if (parts.length >= 3) {
+                // Reconstruct each row with proper pipe boundaries
+                const rows: string[] = [];
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i].trim();
+                    if (part.length === 0) continue;
+                    // Add pipes back — each part lost its boundary pipes from the split
+                    let row = part;
+                    if (!row.startsWith('|')) row = '| ' + row;
+                    if (!row.endsWith('|')) row = row + ' |';
+                    rows.push(row);
+                }
+                if (rows.length >= 2) {
+                    result.push(...rows);
+                    continue;
+                }
+            }
+        }
+
+        // Also handle non-pipe formats on single lines: "col1|col2|col3 col4|col5|col6"
+        // where rows are separated by double-spaces or similar patterns
+        // (Less common, so we'll skip this for now)
+
+        result.push(line);
+    }
+
+    return result.join('\n');
+}
+
+/**
  * Convert delimited text blocks within a message into markdown table format.
  * This preprocesses the text before passing to ReactMarkdown.
  */
 export function convertDelimitedToMarkdown(text: string): string {
+    // === FIRST PASS: Normalize inline pipe tables ===
+    // LLMs often output entire tables on one line like:
+    // "| Header1 | Header2 | | --- | --- | | val1 | val2 | | val3 | val4 |"
+    // We need to split these into separate lines.
+    text = normalizePipeTables(text);
+
     const lines = text.split('\n');
     const result: string[] = [];
     let i = 0;

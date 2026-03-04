@@ -1,0 +1,102 @@
+[
+    {
+        "title": "Website Health Monitor",
+        "description": "Check site status every 5 mins",
+        "prompt": "Create a website health monitor that curls my site every 5 minutes and alerts me on Telegram if it goes down."
+    },
+    {
+        "title": "Whale Tracker",
+        "description": "Monitor large on-chain swaps",
+        "prompt": "Build a whale transaction tracker that checks DexScreener every 2 minutes for SOL transactions over $50k."
+    },
+    {
+        "title": "Daily News Digest",
+        "description": "Morning briefings via Discord",
+        "prompt": "Create a daily news digest that fetches TechCrunch and CoinDesk at 7am, summarises top stories, and sends them to Discord."
+    },
+    {
+        "title": "Process Watchdog",
+        "description": "Auto-restart crashed services",
+        "prompt": "Set up a process watchdog that checks if nginx is running every minute and restarts it if crashed."
+    },
+    {
+        "title": "Write a Blog Post",
+        "description": "Generate a polished article",
+        "prompt": "Write a 1000-word blog post about the future of AI agents in everyday life. Make it engaging and insightful."
+    },
+    {
+        "title": "Explain This Code",
+        "description": "Break down complex code",
+        "prompt": "Explain how this code works step by step and suggest improvements for readability and performance."
+    },
+    {
+        "title": "Email Drafter",
+        "description": "Professional emails in seconds",
+        "prompt": "Draft a professional follow-up email to a client after a project demo, thanking them and outlining next steps."
+    },
+    {
+        "title": "Data Analysis",
+        "description": "Analyse CSV and find insights",
+        "prompt": "I have a CSV file with monthly sales data. Analyse the trends, calculate growth rates, and summarise the key insights."
+    },
+    {
+        "title": "Meal Planner",
+        "description": "Weekly meal plan with recipes",
+        "prompt": "Create a healthy 7-day meal plan for someone who's vegetarian and doesn't like mushrooms. Include quick recipes."
+    },
+    {
+        "title": "Social Media Posts",
+        "description": "Create engaging content",
+        "prompt": "Write 5 engaging Twitter/X posts to promote a new AI-powered productivity app. Include hashtags and a call to action."
+    },
+    {
+        "title": "Resume Builder",
+        "description": "Tailor your CV for a role",
+        "prompt": "Help me rewrite my resume summary and key experience bullets for a Senior Full-Stack Developer position at a startup."
+    },
+    {
+        "title": "Study Notes",
+        "description": "Summarise any topic clearly",
+        "prompt": "Create comprehensive study notes on machine learning fundamentals, covering supervised learning, neural networks, and common algorithms."
+    },
+    {
+        "title": "Git Automation",
+        "description": "Automate repo maintenance",
+        "prompt": "Write a script that checks all my GitHub repos for stale branches older than 30 days and creates a report."
+    },
+    {
+        "title": "API Builder",
+        "description": "Generate REST endpoints",
+        "prompt": "Build a REST API with Express.js that has CRUD endpoints for managing a book collection with title, author, and rating."
+    },
+    {
+        "title": "Travel Planner",
+        "description": "Plan your perfect trip",
+        "prompt": "Plan a 5-day trip to Tokyo for two people on a moderate budget. Include must-see spots, food recommendations, and a daily itinerary."
+    },
+    {
+        "title": "Brainstorm Ideas",
+        "description": "Creative ideation partner",
+        "prompt": "Help me brainstorm 10 unique SaaS product ideas that solve real problems for remote workers. Include a one-line pitch for each."
+    },
+    {
+        "title": "Debug My Code",
+        "description": "Find and fix bugs fast",
+        "prompt": "I'm getting an unexpected error in my React app. Help me debug it step by step and explain what went wrong."
+    },
+    {
+        "title": "Meeting Summary",
+        "description": "Turn notes into action items",
+        "prompt": "Here are my rough meeting notes. Turn them into a clean summary with key decisions, action items, and owners."
+    },
+    {
+        "title": "Learn a Language",
+        "description": "Interactive language practice",
+        "prompt": "I want to practice conversational Spanish. Start a dialogue with me as if we're ordering food at a restaurant in Madrid."
+    },
+    {
+        "title": "Cron Job Scheduler",
+        "description": "Automate recurring tasks",
+        "prompt": "Set up a cron job that backs up my database every night at 2am, compresses the backup, and deletes backups older than 7 days."
+    }
+]

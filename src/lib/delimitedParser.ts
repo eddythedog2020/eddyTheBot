@@ -117,6 +117,9 @@ export function parseDelimitedData(text: string): { rows: string[][]; delimiter:
  * Normalize inline pipe tables that are squished into a single line.
  * E.g.: "| Header1 | Header2 | | --- | --- | | val1 | val2 |"
  * becomes separate lines for each row.
+ *
+ * Strategy: Find the `| --- | --- |` separator pattern to determine
+ * column count, then split ALL cells and group into rows.
  */
 function normalizePipeTables(text: string): string {
     const lines = text.split('\n');
@@ -124,36 +127,56 @@ function normalizePipeTables(text: string): string {
 
     for (const line of lines) {
         const trimmed = line.trim();
-        // Check if this line contains multiple pipe table rows squished together
-        // Pattern: "| ... | | ... |" — the "| |" between rows
-        if (trimmed.startsWith('|') && trimmed.includes('| |')) {
-            // Split on the row boundary pattern: "| |" 
-            // But we need to be careful: "| |" is literally end-of-row + start-of-next-row
-            // Strategy: split on "| |" where it acts as row separator
-            const parts = trimmed.split(/\|\s*\|/);
 
-            if (parts.length >= 3) {
-                // Reconstruct each row with proper pipe boundaries
-                const rows: string[] = [];
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i].trim();
-                    if (part.length === 0) continue;
-                    // Add pipes back — each part lost its boundary pipes from the split
-                    let row = part;
-                    if (!row.startsWith('|')) row = '| ' + row;
-                    if (!row.endsWith('|')) row = row + ' |';
-                    rows.push(row);
-                }
-                if (rows.length >= 2) {
-                    result.push(...rows);
-                    continue;
-                }
+        // Only process lines that start with | and contain a separator pattern (---)
+        if (!trimmed.startsWith('|') || !trimmed.includes('---')) {
+            result.push(line);
+            continue;
+        }
+
+        // Find the separator pattern to detect column count
+        // Match sequences like: | --- | --- | --- |
+        const sepMatch = trimmed.match(/\|\s*[-:]+\s*(?:\|\s*[-:]+\s*)+\|/);
+        if (!sepMatch) {
+            result.push(line);
+            continue;
+        }
+
+        // Count columns from the separator
+        const sepCells = sepMatch[0].split('|').filter(c => c.trim().length > 0);
+        const colCount = sepCells.length;
+
+        if (colCount < 2) {
+            result.push(line);
+            continue;
+        }
+
+        // Split the ENTIRE line by | and filter out empty cells (from row boundaries)
+        let inner = trimmed;
+        if (inner.startsWith('|')) inner = inner.slice(1);
+        if (inner.endsWith('|')) inner = inner.slice(0, -1);
+
+        const allCells = inner.split('|').map(c => c.trim()).filter(c => c.length > 0);
+
+        // Group cells into rows of colCount
+        const rows: string[] = [];
+        let lastWasSeparator = false;
+        for (let i = 0; i <= allCells.length - colCount; i += colCount) {
+            const rowCells = allCells.slice(i, i + colCount);
+            if (rowCells.length === colCount) {
+                const rowStr = '| ' + rowCells.join(' | ') + ' |';
+                // Deduplicate consecutive separator rows
+                const isSep = isMdSeparator(rowStr);
+                if (isSep && lastWasSeparator) continue;
+                lastWasSeparator = isSep;
+                rows.push(rowStr);
             }
         }
 
-        // Also handle non-pipe formats on single lines: "col1|col2|col3 col4|col5|col6"
-        // where rows are separated by double-spaces or similar patterns
-        // (Less common, so we'll skip this for now)
+        if (rows.length >= 3) { // header + separator + at least 1 data row
+            result.push(...rows);
+            continue;
+        }
 
         result.push(line);
     }

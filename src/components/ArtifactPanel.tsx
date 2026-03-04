@@ -131,11 +131,17 @@ export default function ArtifactPanel({ artifact, isOpen, onClose }: ArtifactPan
 
             <div className="artifact-toolbar flex items-center justify-between border-b border-[var(--border-glass)] bg-[#111]" style={{ padding: '16px 24px' }}>
                 <div className="flex items-center gap-3 overflow-hidden">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white/50 shrink-0">
-                        <path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 002 4.25v11.5A2.25 2.25 0 004.25 18h11.5A2.25 2.25 0 0018 15.75V4.25A2.25 2.25 0 0015.75 2H4.25zm4.03 6.28a.75.75 0 00-1.06-1.06L4.97 9.47a.75.75 0 000 1.06l2.25 2.25a.75.75 0 001.06-1.06L6.56 10l1.72-1.72zm4.5-1.06a.75.75 0 10-1.06 1.06L13.44 10l-1.72 1.72a.75.75 0 101.06 1.06l2.25-2.25a.75.75 0 000-1.06l-2.25-2.25z" clipRule="evenodd" />
-                    </svg>
+                    {isTable ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white/50 shrink-0">
+                            <path fillRule="evenodd" d="M.99 5.24A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25v9.5A2.25 2.25 0 0116.75 17H3.25A2.25 2.25 0 011 14.75v-9.5zm8.26 9.52v-3.5H5.75v3.5h3.5zm1.5 0h3.5v-3.5h-3.5v3.5zm3.5-5v-3.5h-3.5v3.5h3.5zm-5 0v-3.5H5.75v3.5h3.5z" clipRule="evenodd" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white/50 shrink-0">
+                            <path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 002 4.25v11.5A2.25 2.25 0 004.25 18h11.5A2.25 2.25 0 0018 15.75V4.25A2.25 2.25 0 0015.75 2H4.25zm4.03 6.28a.75.75 0 00-1.06-1.06L4.97 9.47a.75.75 0 000 1.06l2.25 2.25a.75.75 0 001.06-1.06L6.56 10l1.72-1.72zm4.5-1.06a.75.75 0 10-1.06 1.06L13.44 10l-1.72 1.72a.75.75 0 101.06 1.06l2.25-2.25a.75.75 0 000-1.06l-2.25-2.25z" clipRule="evenodd" />
+                        </svg>
+                    )}
                     <span className="text-sm font-medium text-white/90 truncate">{artifact.title}</span>
-                    {artifact.language && (
+                    {artifact.language && !isTable && (
                         <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/70">
                             {artifact.language}
                         </span>
@@ -197,54 +203,124 @@ export default function ArtifactPanel({ artifact, isOpen, onClose }: ArtifactPan
             )}
             <div className={`flex-1 overflow-auto ${viewMode === "preview" && isHtml ? "bg-white" : "bg-[#0a0a0a]"}`}>
                 {viewMode === "preview" ? (
-                    isMarkdown || isTable ? (
-                        <div className="prose prose-invert max-w-none" style={{ padding: '48px 40px 40px 40px' }}>
-                            <ReactMarkdown
-                                components={{
-                                    table({ children, ...props }: any) {
-                                        return <table {...props} style={{
-                                            width: '100%', borderCollapse: 'collapse',
-                                            fontSize: '13px', lineHeight: '1.5',
-                                            border: '1px solid rgba(255,255,255,0.1)',
-                                        }}>{children}</table>;
-                                    },
-                                    thead({ children, ...props }: any) {
-                                        return <thead {...props} style={{ background: 'rgba(255,255,255,0.06)' }}>{children}</thead>;
-                                    },
-                                    th({ children, ...props }: any) {
-                                        return <th {...props} style={{
-                                            padding: '10px 14px', textAlign: 'left', fontWeight: 600,
-                                            fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px',
-                                            color: 'rgba(255,255,255,0.7)',
-                                            borderBottom: '1px solid rgba(255,255,255,0.12)',
-                                            borderRight: '1px solid rgba(255,255,255,0.06)',
-                                        }}>{children}</th>;
-                                    },
-                                    td({ children, ...props }: any) {
-                                        return <td {...props} style={{
-                                            padding: '10px 14px',
-                                            borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                            borderRight: '1px solid rgba(255,255,255,0.06)',
-                                            color: 'rgba(255,255,255,0.85)',
-                                        }}>{children}</td>;
-                                    },
-                                    tr({ children, node, ...props }: any) {
-                                        return <tr {...props} style={{ transition: 'background 0.1s' }}
-                                            onMouseEnter={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                                            onMouseLeave={(e: any) => e.currentTarget.style.background = 'transparent'}
-                                        >{children}</tr>;
-                                    },
-                                }}
-                            >{artifact.content}</ReactMarkdown>
-                        </div>
-                    ) : isHtml ? (
-                        <iframe
-                            srcDoc={artifact.content}
-                            sandbox="allow-scripts"
-                            className="w-full h-full border-none"
-                            title="HTML Preview"
-                        />
-                    ) : null
+                    isTable ? (() => {
+                        // Parse markdown table content into rows
+                        const tableLines = artifact.content.split('\n').filter((l: string) => l.trim().startsWith('|'));
+                        const dataLines = tableLines.filter((l: string) => !/^\|[\s\-:|]+\|$/.test(l.trim()));
+                        const rows = dataLines.map((l: string) =>
+                            l.trim().slice(1, -1).split('|').map((c: string) => c.trim())
+                        );
+                        const headers = rows[0] || [];
+                        const bodyRows = rows.slice(1);
+
+                        return (
+                            <div style={{ padding: '0', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {/* Spreadsheet toolbar */}
+                                <div style={{
+                                    padding: '8px 16px', background: '#111',
+                                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                                    display: 'flex', alignItems: 'center', gap: '12px',
+                                    fontSize: '12px', color: 'rgba(255,255,255,0.5)',
+                                    flexShrink: 0,
+                                }}>
+                                    <span>{bodyRows.length} rows × {headers.length} columns</span>
+                                </div>
+                                {/* Spreadsheet grid */}
+                                <div style={{ flex: 1, overflow: 'auto' }}>
+                                    <table style={{
+                                        width: '100%', borderCollapse: 'collapse',
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                                        fontSize: '12px', lineHeight: '1.4',
+                                    }}>
+                                        <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                                            <tr>
+                                                {/* Row number header */}
+                                                <th style={{
+                                                    width: '48px', minWidth: '48px',
+                                                    padding: '8px 6px', textAlign: 'center',
+                                                    background: '#1a1a1a',
+                                                    borderBottom: '2px solid rgba(255,255,255,0.12)',
+                                                    borderRight: '2px solid rgba(255,255,255,0.1)',
+                                                    color: 'rgba(255,255,255,0.3)',
+                                                    fontSize: '10px', fontWeight: 500,
+                                                    position: 'sticky', left: 0, zIndex: 3,
+                                                }}>#</th>
+                                                {headers.map((h: string, ci: number) => (
+                                                    <th key={ci} style={{
+                                                        padding: '8px 14px', textAlign: 'left',
+                                                        fontWeight: 600, fontSize: '11px',
+                                                        textTransform: 'uppercase', letterSpacing: '0.5px',
+                                                        color: 'rgba(255,255,255,0.7)',
+                                                        background: '#1a1a1a',
+                                                        borderBottom: '2px solid rgba(255,255,255,0.12)',
+                                                        borderRight: '1px solid rgba(255,255,255,0.06)',
+                                                        whiteSpace: 'nowrap',
+                                                    }}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bodyRows.map((row: string[], ri: number) => (
+                                                <tr key={ri}
+                                                    style={{ transition: 'background 0.08s' }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    {/* Row number */}
+                                                    <td style={{
+                                                        padding: '6px 6px', textAlign: 'center',
+                                                        color: 'rgba(255,255,255,0.2)',
+                                                        background: '#0f0f0f',
+                                                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                                                        borderRight: '2px solid rgba(255,255,255,0.1)',
+                                                        fontSize: '10px', fontWeight: 400,
+                                                        position: 'sticky', left: 0,
+                                                        userSelect: 'none',
+                                                    }}>{ri + 1}</td>
+                                                    {row.map((cell: string, ci: number) => (
+                                                        <td key={ci} style={{
+                                                            padding: '6px 14px',
+                                                            borderBottom: '1px solid rgba(255,255,255,0.04)',
+                                                            borderRight: '1px solid rgba(255,255,255,0.04)',
+                                                            color: 'rgba(255,255,255,0.85)',
+                                                            whiteSpace: 'nowrap',
+                                                            cursor: 'cell',
+                                                        }}
+                                                            onClick={(e) => {
+                                                                const el = e.currentTarget;
+                                                                // Brief highlight effect
+                                                                el.style.background = 'rgba(59,130,246,0.15)';
+                                                                el.style.outline = '1px solid rgba(59,130,246,0.5)';
+                                                                setTimeout(() => {
+                                                                    el.style.background = '';
+                                                                    el.style.outline = '';
+                                                                }, 1500);
+                                                                // Copy cell value
+                                                                navigator.clipboard.writeText(cell);
+                                                            }}
+                                                            title="Click to copy cell value"
+                                                        >{cell}</td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })()
+                        : isMarkdown ? (
+                            <div className="prose prose-invert max-w-none" style={{ padding: '48px 40px 40px 40px' }}>
+                                <ReactMarkdown>{artifact.content}</ReactMarkdown>
+                            </div>
+                        ) : isHtml ? (
+                            <iframe
+                                srcDoc={artifact.content}
+                                sandbox="allow-scripts"
+                                className="w-full h-full border-none"
+                                title="HTML Preview"
+                            />
+                        ) : null
                 ) : (
                     <div style={{ padding: '0', fontSize: '13px', lineHeight: '1.65', fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace" }}>
                         {artifact.content.split('\n').map((line, i) => (

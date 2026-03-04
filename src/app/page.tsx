@@ -8,6 +8,7 @@ import MemoryModal from "@/components/MemoryModal";
 import TasksModal from "@/components/TasksModal";
 import NotesModal from "@/components/NotesModal";
 import { useChat } from "@/components/ChatContext";
+import { convertDelimitedToMarkdown } from "@/lib/delimitedParser";
 import allSuggestions from "@/data/suggestions.json";
 
 type Suggestion = { title: string; description: string; prompt: string };
@@ -877,30 +878,7 @@ export default function ChatPage() {
                                   }
                                 }}
                               >
-                                {(() => {
-                                  // Pre-process: fix pipe-delimited tables missing the markdown separator row
-                                  let text = msg.content.replace(/PicoBot/g, botName);
-                                  const lines = text.split('\n');
-                                  const processed: string[] = [];
-                                  for (let i = 0; i < lines.length; i++) {
-                                    const line = lines[i].trim();
-                                    const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
-                                    processed.push(lines[i]);
-                                    // If this line looks like a pipe-delimited header row and the next line is NOT a separator
-                                    if (line.startsWith('|') && line.endsWith('|') && line.split('|').filter(Boolean).length >= 2) {
-                                      const isSeparator = (l: string) => /^\|[\s\-:|]+\|$/.test(l);
-                                      if (!isSeparator(nextLine) && nextLine.startsWith('|') && nextLine.endsWith('|')) {
-                                        // Check if any previous line was already a separator for this table
-                                        const prevLine = i > 0 ? processed[processed.length - 2]?.trim() : '';
-                                        if (!isSeparator(prevLine)) {
-                                          const colCount = line.split('|').filter(Boolean).length;
-                                          processed.push('| ' + Array(colCount).fill('---').join(' | ') + ' |');
-                                        }
-                                      }
-                                    }
-                                  }
-                                  return processed.join('\n');
-                                })()}
+                                {convertDelimitedToMarkdown(msg.content.replace(/PicoBot/g, botName))}
                               </ReactMarkdown>
                             </div>
                           ) : (

@@ -1,6 +1,4 @@
 import { NextRequest } from "next/server";
-import { spawn } from "child_process";
-import path from "path";
 import db from "@/lib/db";
 import { detectSearchCapability } from "@/lib/searchDetection";
 
@@ -65,84 +63,146 @@ export async function POST(req: NextRequest) {
     const hasOverride = settings?.preferLlmSearch !== null && settings?.preferLlmSearch !== undefined;
     const effectiveSearch = hasOverride ? settings!.preferLlmSearch === 1 : detected.hasSearch;
 
-    // Append instructions
-    let promptSuffix = "\n\n(System Note: If you write or modify any code, scripts, or files to fulfill this request, you MUST output the complete code in a markdown fenced code block in your final response. This is required so the Web UI can display the code in the Canvas panel.)";
+    // Build system prompt
+    let systemPrompt = "You are a helpful AI assistant.";
+    systemPrompt += "\n\n(System Note: If you write or modify any code, scripts, or files to fulfill this request, you MUST output the complete code in a markdown fenced code block in your final response. This is required so the Web UI can display the code in the Canvas panel.)";
 
     if (effectiveSearch) {
-        promptSuffix += `\n\n(System Note: Your LLM provider (${detected.provider}) has built-in web search / grounding capabilities. When you need current information, real-time data, or need to look something up, prefer using your built-in search capability directly instead of the browser tool — it is significantly faster and more reliable.)`;
+        systemPrompt += `\n\n(System Note: Your LLM provider (${detected.provider}) has built-in web search / grounding capabilities. When you need current information, real-time data, or need to look something up, prefer using your built-in search capability directly instead of the browser tool — it is significantly faster and more reliable.)`;
     }
 
-    promptSuffix += `\n\n(System Note: Whenever you reference news articles, current events, statistics, or factual claims that come from external sources, you MUST cite your sources. Include the publication name and URL where possible. Format citations clearly at the end of your response, e.g. "Source: [Publication Name](URL)". Never present news or factual information without attribution.)`;
+    systemPrompt += `\n\n(System Note: Whenever you reference news articles, current events, statistics, or factual claims that come from external sources, you MUST cite your sources. Include the publication name and URL where possible. Format citations clearly at the end of your response, e.g. "Source: [Publication Name](URL)". Never present news or factual information without attribution.)`;
 
-    const fullMessage = conversationContext + message + promptSuffix;
+    // Build the full user message with conversation context
+    const fullUserMessage = conversationContext + message;
 
-    // Resolve binary path
-    const ext = process.platform === "win32" ? ".exe" : "";
-    const binPath = path.join(process.cwd(), "bin", `picobot${ext}`);
-
-    // Build args
-    const args = ["agent", "-m", fullMessage];
-    if (settings?.defaultModel) {
-        args.push("-M", settings.defaultModel);
+    // Build the API URL — ensure it ends with /chat/completions
+    let apiBase = settings?.apiBaseUrl || 'http://localhost:11434/v1';
+    // Remove trailing slash
+    apiBase = apiBase.replace(/\/+$/, '');
+    // If it doesn't already end with /chat/completions, add it
+    if (!apiBase.endsWith('/chat/completions')) {
+        // If it ends with /v1 or similar, add /chat/completions
+        apiBase = apiBase + '/chat/completions';
     }
 
-    // Override environment
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    if (settings) {
-        if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
-        if (settings.apiBaseUrl) env.OPENAI_API_BASE = settings.apiBaseUrl;
-    }
+    const apiKey = settings?.apiKey || 'picobot-local';
+    const model = settings?.defaultModel || 'llama3';
 
-    // Create a readable stream from the process stdout
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-        start(controller) {
-            const proc = spawn(binPath, args, {
-                env,
-                stdio: ['pipe', 'pipe', 'pipe'],
-            });
+    // Call the OpenAI-compatible API directly with streaming
+    try {
+        const apiResponse = await fetch(apiBase, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: fullUserMessage },
+                ],
+                stream: true,
+            }),
+        });
 
-            let killed = false;
-            const timeout = setTimeout(() => {
-                killed = true;
-                proc.kill('SIGTERM');
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Timeout after 2 minutes" })}\n\n`));
-                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                controller.close();
-            }, 120000);
-
-            proc.stdout.on('data', (chunk: Buffer) => {
-                const text = chunk.toString();
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: text })}\n\n`));
-            });
-
-            proc.stderr.on('data', (chunk: Buffer) => {
-                const text = chunk.toString();
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: text })}\n\n`));
-            });
-
-            proc.on('close', () => {
-                if (!killed) {
-                    clearTimeout(timeout);
+        if (!apiResponse.ok) {
+            const errorText = await apiResponse.text();
+            const encoder = new TextEncoder();
+            const errorStream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: `⚠️ API Error (${apiResponse.status}): ${errorText}` })}\n\n`));
                     controller.enqueue(encoder.encode("data: [DONE]\n\n"));
                     controller.close();
-                }
+                },
             });
+            return new Response(errorStream, {
+                headers: {
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                },
+            });
+        }
 
-            proc.on('error', (err) => {
-                clearTimeout(timeout);
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: err.message })}\n\n`));
+        // Pipe the API's SSE stream through, extracting content deltas
+        const encoder = new TextEncoder();
+        const apiReader = apiResponse.body?.getReader();
+        const decoder = new TextDecoder();
+
+        const stream = new ReadableStream({
+            async start(controller) {
+                if (!apiReader) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "No response body" })}\n\n`));
+                    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                    controller.close();
+                    return;
+                }
+
+                let buffer = '';
+                try {
+                    while (true) {
+                        const { done, value } = await apiReader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+                            const payload = trimmed.slice(6);
+                            if (payload === '[DONE]') {
+                                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                                controller.close();
+                                return;
+                            }
+
+                            try {
+                                const parsed = JSON.parse(payload);
+                                const delta = parsed.choices?.[0]?.delta?.content;
+                                if (delta) {
+                                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: delta })}\n\n`));
+                                }
+                            } catch {
+                                // Skip malformed JSON chunks
+                            }
+                        }
+                    }
+                } catch (err: any) {
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: err.message || "Stream error" })}\n\n`));
+                }
+
                 controller.enqueue(encoder.encode("data: [DONE]\n\n"));
                 controller.close();
-            });
-        },
-    });
+            },
+        });
 
-    return new Response(stream, {
-        headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
-    });
+        return new Response(stream, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        });
+    } catch (err: any) {
+        const encoder = new TextEncoder();
+        const errorStream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: `⚠️ Connection error: ${err.message}` })}\n\n`));
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                controller.close();
+            },
+        });
+        return new Response(errorStream, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        });
+    }
 }

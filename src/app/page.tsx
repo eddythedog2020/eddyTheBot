@@ -533,8 +533,31 @@ export default function ChatPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(followUpPayload),
               });
-              const followUpData = await followUpRes.json();
-              const followUpResponse = followUpData.response || '';
+
+              // Parse the SSE stream to collect all tokens
+              let followUpResponse = '';
+              const reader = followUpRes.body?.getReader();
+              const decoder = new TextDecoder();
+              if (reader) {
+                let sseBuffer = '';
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  sseBuffer += decoder.decode(value, { stream: true });
+                  const lines = sseBuffer.split('\n');
+                  sseBuffer = lines.pop() || '';
+                  for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed.startsWith('data: ')) continue;
+                    const payload = trimmed.slice(6);
+                    if (payload === '[DONE]') break;
+                    try {
+                      const parsed = JSON.parse(payload);
+                      if (parsed.token) followUpResponse += parsed.token;
+                    } catch { /* skip malformed */ }
+                  }
+                }
+              }
 
               if (followUpResponse) {
                 const followMsgId = (Date.now() + 20).toString();

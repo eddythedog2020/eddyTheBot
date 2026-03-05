@@ -247,31 +247,37 @@ export default function ChatPage() {
       const currentChat = chats.find(c => c.id === targetChatId);
       const allMessages = currentChat?.messages || [];
 
-      // Need at least a few messages to compact
-      if (allMessages.length < 4) {
-        const errMsg = { id: Date.now().toString(), role: "ai" as const, content: "📋 Not enough conversation history to compact. Keep chatting and try again later!" };
+      const KEEP_RECENT = 7;
+
+      // Need enough messages beyond the recent ones to make compaction worthwhile
+      if (allMessages.length <= KEEP_RECENT + 2) {
+        const errMsg = { id: Date.now().toString(), role: "ai" as const, content: `📋 Not enough conversation history to compact. You need more than ${KEEP_RECENT + 2} messages. Keep chatting and try again later!` };
         addMessageToChat(targetChatId, errMsg);
         setIsCompacting(false);
         return;
       }
 
+      // Only compact messages BEFORE the last 7
+      const messagesToCompact = allMessages.slice(0, allMessages.length - KEEP_RECENT);
+
       // Show compacting message
-      const compactingMsg = { id: Date.now().toString(), role: "ai" as const, content: "📋 Compacting conversation history..." };
+      const compactingMsg = { id: Date.now().toString(), role: "ai" as const, content: `📋 Compacting ${messagesToCompact.length} older messages (keeping last ${KEEP_RECENT} in full)...` };
       addMessageToChat(targetChatId, compactingMsg);
 
       try {
         const res = await fetch("/api/compact", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: allMessages, customPrompt }),
+          body: JSON.stringify({ messages: messagesToCompact, customPrompt }),
         });
         const data = await res.json();
 
         if (data.summary) {
-          // Store the compaction — atIndex is the current message count
-          compactChat(targetChatId, data.summary, allMessages.length + 1); // +1 for the compacting msg
+          // atIndex = where we start keeping full messages (the last KEEP_RECENT)
+          const compactedAtIdx = allMessages.length - KEEP_RECENT;
+          compactChat(targetChatId, data.summary, compactedAtIdx);
 
-          const successMsg = { id: (Date.now() + 1).toString(), role: "ai" as const, content: `✅ **Context compacted.** ${allMessages.length} messages summarized into a compact context.\n\nI'll use this summary for future messages in this chat. You can keep chatting normally — I remember everything important from our conversation.` };
+          const successMsg = { id: (Date.now() + 1).toString(), role: "ai" as const, content: `✅ **Context compacted.** ${messagesToCompact.length} older messages summarized. The last ${KEEP_RECENT} messages remain in full.\n\nI'll use the summary + recent messages for context going forward. You can keep chatting normally!` };
           addMessageToChat(targetChatId, successMsg);
         } else {
           const errMsg = { id: (Date.now() + 1).toString(), role: "ai" as const, content: "⚠️ Compaction failed. Try again later." };

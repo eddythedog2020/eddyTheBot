@@ -395,7 +395,7 @@ export default function ChatPage() {
         }
       } catch { /* ignore memory fetch errors */ }
 
-      const res = await fetch("/api/chat/stream", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -407,49 +407,36 @@ export default function ChatPage() {
         }),
       });
 
-      // Stream the response via SSE
+      const data = await res.json();
+      const fullResponse = data.response || '';
+
+      // Create an empty AI message, then typewriter-animate it
       const aiMsgId = (Date.now() + 1).toString();
       const aiMsg = { id: aiMsgId, role: "ai" as const, content: "" };
       addMessageToChat(targetChatId, aiMsg);
 
-      let fullResponse = '';
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
+      // Typewriter effect: reveal tokens progressively
+      const CHARS_PER_TICK = 3;
+      const TICK_MS = 12;
+      let charIndex = 0;
 
-      if (reader) {
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // keep incomplete line in buffer
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const payload = line.slice(6).trim();
-              if (payload === '[DONE]') break;
-              try {
-                const parsed = JSON.parse(payload);
-                if (parsed.token) {
-                  fullResponse += parsed.token;
-                  updateMessageInChat(targetChatId, aiMsgId, fullResponse);
-                }
-              } catch { /* skip malformed SSE lines */ }
-            }
+      await new Promise<void>((resolve) => {
+        const interval = setInterval(() => {
+          charIndex = Math.min(charIndex + CHARS_PER_TICK, fullResponse.length);
+          updateMessageInChat(targetChatId, aiMsgId, fullResponse.slice(0, charIndex));
+          if (charIndex >= fullResponse.length) {
+            clearInterval(interval);
+            resolve();
           }
-        }
-      }
+        }, TICK_MS);
+      });
 
-      // Persist the final message to DB
-      if (fullResponse) {
-        fetch(`/api/chats/${targetChatId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: aiMsgId, role: "ai", content: fullResponse, timestamp: Date.now() }),
-        });
-      }
+      // Persist the final complete message to DB (overwrite the empty placeholder)
+      fetch(`/api/chats/${targetChatId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: aiMsgId, role: "ai", content: fullResponse, timestamp: Date.now() }),
+      });
 
       // Auto-compaction: trigger when messages exceed threshold
       const AUTO_COMPACT_THRESHOLD = 25;

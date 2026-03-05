@@ -1,0 +1,114 @@
+import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+import os from "os";
+
+const TASKS_PATH = path.join(os.homedir(), ".picobot", "workspace", "TASKS.md");
+
+type Task = {
+    id: string;
+    text: string;
+    done: boolean;
+    created: string;
+    category: string;
+};
+
+function readTasks(): Task[] {
+    if (!fs.existsSync(TASKS_PATH)) return [];
+    const content = fs.readFileSync(TASKS_PATH, "utf-8");
+    const tasks: Task[] = [];
+    for (const line of content.split("\n")) {
+        const m = line.match(/^- \[([ x])\] (.+)/);
+        if (!m) continue;
+        // Parse metadata from line: text |id:xxx|created:xxx|cat:xxx
+        const raw = m[2];
+        const idMatch = raw.match(/\|id:([^|]+)/);
+        const createdMatch = raw.match(/\|created:([^|]+)/);
+        const catMatch = raw.match(/\|cat:([^|]+)/);
+        const text = raw.replace(/\|id:[^|]+/g, "").replace(/\|created:[^|]+/g, "").replace(/\|cat:[^|]+/g, "").replace(/\|$/g, "").trim();
+        tasks.push({
+            id: idMatch ? idMatch[1] : Math.random().toString(36).slice(2, 10),
+            text,
+            done: m[1] === "x",
+            created: createdMatch ? createdMatch[1] : new Date().toISOString(),
+            category: catMatch ? catMatch[1] : "general",
+        });
+    }
+    return tasks;
+}
+
+function writeTasks(tasks: Task[]) {
+    const dir = path.dirname(TASKS_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const lines = tasks.map((t) => {
+        const check = t.done ? "x" : " ";
+        return `- [${check}] ${t.text} |id:${t.id}|created:${t.created}|cat:${t.category}|`;
+    });
+
+    const header = "# Tasks\n\n";
+    fs.writeFileSync(TASKS_PATH, header + lines.join("\n") + "\n", "utf-8");
+}
+
+export async function GET() {
+    try {
+        const tasks = readTasks();
+        return NextResponse.json({ tasks });
+    } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { text, category } = body;
+        if (!text) return NextResponse.json({ error: "text is required" }, { status: 400 });
+
+        const tasks = readTasks();
+        const newTask: Task = {
+            id: Math.random().toString(36).slice(2, 10),
+            text,
+            done: false,
+            created: new Date().toISOString(),
+            category: category || "general",
+        };
+        tasks.push(newTask);
+        writeTasks(tasks);
+        return NextResponse.json({ success: true, task: newTask });
+    } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get("id");
+        if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+        const tasks = readTasks();
+        const filtered = tasks.filter((t) => t.id !== id);
+        writeTasks(filtered);
+        return NextResponse.json({ success: true });
+    } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { id, done } = body;
+        if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+        const tasks = readTasks();
+        const task = tasks.find((t) => t.id === id);
+        if (!task) return NextResponse.json({ error: "task not found" }, { status: 404 });
+        task.done = done;
+        writeTasks(tasks);
+        return NextResponse.json({ success: true, task });
+    } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+}

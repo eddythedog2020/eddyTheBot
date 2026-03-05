@@ -441,13 +441,30 @@ export default function ChatPage() {
       const data = await res.json();
       const fullResponse = data.response || '';
 
+      // When code execution is enabled, detect python:run blocks
+      const codeBlocks: string[] = [];
+      if (codeExecution) {
+        const codeContentRegex = /```python:run\r?\n([\s\S]*?)```/g;
+        let match;
+        while ((match = codeContentRegex.exec(fullResponse)) !== null) {
+          codeBlocks.push(match[1].trim());
+        }
+      }
+
+      // Strip python:run code blocks from the displayed/persisted message content.
+      // The code itself will be available via the "Display Code" button on the execution output.
+      // fullResponse is kept intact only for the follow-up LLM interpretation call.
+      const cleanResponse = codeBlocks.length > 0
+        ? fullResponse.replace(/```python:run\r?\n[\s\S]*?```/g, '').replace(/\n{3,}/g, '\n\n').trim()
+        : fullResponse;
+
       // Create AI message — skip typewriter if response contains a table
       const aiMsgId = (Date.now() + 1).toString();
-      const hasTable = /^\s*\|.+\|/m.test(fullResponse);
+      const hasTable = /^\s*\|.+\|/m.test(cleanResponse);
 
       if (hasTable) {
         // Tables break when revealed char-by-char, show instantly
-        const aiMsg = { id: aiMsgId, role: "ai" as const, content: fullResponse };
+        const aiMsg = { id: aiMsgId, role: "ai" as const, content: cleanResponse };
         addMessageToChat(targetChatId, aiMsg);
       } else {
         // Typewriter effect: reveal tokens progressively
@@ -460,9 +477,9 @@ export default function ChatPage() {
 
         await new Promise<void>((resolve) => {
           const interval = setInterval(() => {
-            charIndex = Math.min(charIndex + CHARS_PER_TICK, fullResponse.length);
-            updateMessageInChat(targetChatId, aiMsgId, fullResponse.slice(0, charIndex));
-            if (charIndex >= fullResponse.length) {
+            charIndex = Math.min(charIndex + CHARS_PER_TICK, cleanResponse.length);
+            updateMessageInChat(targetChatId, aiMsgId, cleanResponse.slice(0, charIndex));
+            if (charIndex >= cleanResponse.length) {
               clearInterval(interval);
               resolve();
             }
@@ -470,55 +487,59 @@ export default function ChatPage() {
         });
       }
 
-      // Persist the final complete message to DB (overwrite the empty placeholder)
+      // Persist the final complete message to DB
       fetch(`/api/chats/${targetChatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: aiMsgId, role: "ai", content: fullResponse, timestamp: Date.now() }),
+        body: JSON.stringify({ id: aiMsgId, role: "ai", content: cleanResponse, timestamp: Date.now() }),
       });
 
-      // ── Code Execution: detect ```python:run blocks and execute them ──
-      if (codeExecution) {
-        const codeBlockRegex = /```python:run\n([\s\S]*?)```/g;
-        const codeBlocks: string[] = [];
-        let match;
-        while ((match = codeBlockRegex.exec(fullResponse)) !== null) {
-          codeBlocks.push(match[1].trim());
-        }
+      // ── Code Execution: execute detected python:run blocks ──
+      if (codeExecution && codeBlocks.length > 0) {
+        for (const code of codeBlocks) {
+          // Show a "running" indicator
+          const execMsgId = (Date.now() + 10).toString();
+          const execMsg = { id: execMsgId, role: "ai" as const, content: "⏳ *Executing code...*" };
+          addMessageToChat(targetChatId, execMsg);
 
-        if (codeBlocks.length > 0) {
-          for (const code of codeBlocks) {
-            // Show a "running" indicator
-            const execMsgId = (Date.now() + 10).toString();
-            const execMsg = { id: execMsgId, role: "ai" as const, content: "⏳ *Executing code...*" };
-            addMessageToChat(targetChatId, execMsg);
+          try {
+            const execRes = await fetch("/api/execute", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code, language: "python" }),
+            });
 
+            // Safety check: ensure we got JSON back
+            const contentType = execRes.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+              const rawText = await execRes.text();
+              throw new Error(`Execute endpoint returned unexpected format: ${rawText.substring(0, 100)}`);
+            }
+
+            const execData = await execRes.json();
+
+            // Format the output
+            let outputText = "";
+            if (execData.stdout) outputText += execData.stdout;
+            if (execData.stderr) outputText += (outputText ? "\n" : "") + execData.stderr;
+            if (!outputText) outputText = "(No output)";
+            const exitLabel = execData.exitCode === 0 ? "✅" : "❌";
+
+            // Encode the code as base64 and embed as hidden marker for the Display Code button
+            const codeBase64 = btoa(unescape(encodeURIComponent(code)));
+            const outputContent = `${exitLabel} **Code Output:**\n\`\`\`\n${outputText.trim()}\n\`\`\`\n<!--CODE:${codeBase64}-->\n`;
+            updateMessageInChat(targetChatId, execMsgId, outputContent);
+
+            // Persist execution output
+            fetch(`/api/chats/${targetChatId}/messages`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: execMsgId, role: "ai", content: outputContent, timestamp: Date.now() }),
+            });
+
+            // Follow-up LLM call to interpret the result — in its own try/catch
+            // so a failure here never overwrites the successful code output above
             try {
-              const execRes = await fetch("/api/execute", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ code, language: "python" }),
-              });
-              const execData = await execRes.json();
-
-              // Format the output
-              let outputText = "";
-              if (execData.stdout) outputText += execData.stdout;
-              if (execData.stderr) outputText += (outputText ? "\n" : "") + execData.stderr;
-              if (!outputText) outputText = "(No output)";
-              const exitLabel = execData.exitCode === 0 ? "✅" : "❌";
-
-              const outputContent = `${exitLabel} **Code Output:**\n\`\`\`\n${outputText.trim()}\n\`\`\``;
-              updateMessageInChat(targetChatId, execMsgId, outputContent);
-
-              // Persist execution output
-              fetch(`/api/chats/${targetChatId}/messages`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: execMsgId, role: "ai", content: outputContent, timestamp: Date.now() }),
-              });
-
-              // Follow-up LLM call to interpret the result
               const followUpPayload = {
                 message: `The code execution finished. Here is the output:\n\n${outputText.trim()}\n\nExit code: ${execData.exitCode}\n\nPlease interpret this result for the user. If the task succeeded, confirm it. If there were errors, explain what went wrong and suggest a fix. IMPORTANT: Do NOT generate any python:run code blocks in this response — just summarize and interpret the results in plain text.`,
                 history: [
@@ -528,50 +549,33 @@ export default function ChatPage() {
                 ],
               };
 
-              const followUpRes = await fetch("/api/chat/stream", {
+              const followUpRes = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(followUpPayload),
               });
 
-              // Parse the SSE stream to collect all tokens
-              let followUpResponse = '';
-              const reader = followUpRes.body?.getReader();
-              const decoder = new TextDecoder();
-              if (reader) {
-                let sseBuffer = '';
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  sseBuffer += decoder.decode(value, { stream: true });
-                  const lines = sseBuffer.split('\n');
-                  sseBuffer = lines.pop() || '';
-                  for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed.startsWith('data: ')) continue;
-                    const payload = trimmed.slice(6);
-                    if (payload === '[DONE]') break;
-                    try {
-                      const parsed = JSON.parse(payload);
-                      if (parsed.token) followUpResponse += parsed.token;
-                    } catch { /* skip malformed */ }
-                  }
-                }
-              }
+              const followUpData = await followUpRes.json();
+              const followUpResponse = followUpData.response || '';
 
               if (followUpResponse) {
-                const followMsgId = (Date.now() + 20).toString();
-                const followMsg = { id: followMsgId, role: "ai" as const, content: followUpResponse };
-                addMessageToChat(targetChatId, followMsg);
+                // Instead of adding a new 3rd message, overwrite the initial "I will do X" message
+                // with the final interpretation. This puts the insightful answer at the top, 
+                // and the code output below it.
+                updateMessageInChat(targetChatId, aiMsgId, followUpResponse);
+
+                // Persist the updated initial message
                 fetch(`/api/chats/${targetChatId}/messages`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ id: followMsgId, role: "ai", content: followUpResponse, timestamp: Date.now() }),
+                  body: JSON.stringify({ id: aiMsgId, role: "ai", content: followUpResponse, timestamp: Date.now() }),
                 });
               }
-            } catch (err: any) {
-              updateMessageInChat(targetChatId, execMsgId, `❌ **Execution failed:** ${err.message}`);
+            } catch {
+              // Follow-up interpretation failed — but that's OK, the code output is already shown
             }
+          } catch (err: any) {
+            updateMessageInChat(targetChatId, execMsgId, `❌ **Execution failed:** ${err.message}`);
           }
         }
       }
@@ -1255,24 +1259,77 @@ export default function ChatPage() {
                                   code({ node, inline, className, children, ...props }: any) {
                                     const match = /language-(\w+)/.exec(className || '');
                                     const isBlock = !inline && match;
+                                    // Hide python:run code blocks from chat — auto-open in Canvas instead
+                                    const rawClass = className || '';
+                                    if (isBlock && (rawClass.includes(':run') || rawClass.includes('pythonrun'))) {
+                                      // Auto-open the code in Canvas panel
+                                      setTimeout(() => {
+                                        setActiveArtifact({ type: 'code', content: String(children).replace(/\n$/, ''), language: 'python', title: 'Executed Code', id: Date.now().toString() });
+                                      }, 0);
+                                      return null; // Hide from chat
+                                    }
                                     if (isBlock) {
+                                      const codeStr = String(children).replace(/\n$/, '');
+                                      const CopyBtn = ({ position }: { position: 'top' | 'bottom' }) => {
+                                        const [copied, setCopied] = React.useState(false);
+                                        return (
+                                          <button
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(codeStr);
+                                              setCopied(true);
+                                              setTimeout(() => setCopied(false), 2000);
+                                            }}
+                                            style={{
+                                              display: 'inline-flex', alignItems: 'center',
+                                              padding: '5px',
+                                              background: copied ? 'rgba(34,197,94,0.15)' : 'transparent',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              color: copied ? '#22c55e' : 'rgba(255,255,255,0.4)',
+                                              cursor: 'pointer', transition: 'all 0.15s',
+                                            }}
+                                            onMouseEnter={(e: any) => { if (!copied) { e.currentTarget.style.color = '#fff'; } }}
+                                            onMouseLeave={(e: any) => { if (!copied) { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; } }}
+                                            title={copied ? 'Copied!' : 'Copy to clipboard'}
+                                          >
+                                            {copied ? (
+                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: '14px', height: '14px' }}><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                                            ) : (
+                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: '14px', height: '14px' }}><path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" /><path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" /></svg>
+                                            )}
+                                          </button>
+                                        );
+                                      };
                                       return (
                                         <div className="relative group mt-4 mb-4">
-                                          <div className="absolute top-2 right-2 opacity-0 group-[&:hover]:opacity-100 transition-opacity z-10 hidden sm:block">
-                                            <button
-                                              onClick={() => setActiveArtifact({ type: 'code', content: String(children).replace(/\n$/, ''), language: match[1], title: 'Generated Code', id: Date.now().toString() })}
-                                              className="bg-white/10 hover:bg-white/20 text-white text-xs px-2 py-1 rounded backdrop-blur-md border border-white/10 flex items-center gap-1 transition-colors shadow-sm"
-                                              title="Open code in canvas"
-                                            >
-                                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-                                                <path d="M4.25 2A2.25 2.25 0 002 4.25v11.5A2.25 2.25 0 004.25 18h11.5A2.25 2.25 0 0018 15.75V4.25A2.25 2.25 0 0015.75 2H4.25zM14 9a1 1 0 00-1-1H7a1 1 0 00-1 1v5a1 1 0 001 1h6a1 1 0 001-1V9z" />
-                                              </svg>
-                                              Open in Canvas
-                                            </button>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{match[1]}</span>
+                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                              <CopyBtn position="top" />
+                                              <button
+                                                onClick={() => setActiveArtifact({ type: 'code', content: codeStr, language: match[1], title: 'Generated Code', id: Date.now().toString() })}
+                                                style={{
+                                                  display: 'inline-flex', alignItems: 'center',
+                                                  padding: '5px', background: 'transparent', border: 'none',
+                                                  borderRadius: '4px', color: 'rgba(255,255,255,0.4)',
+                                                  cursor: 'pointer', transition: 'all 0.15s',
+                                                }}
+                                                onMouseEnter={(e: any) => { e.currentTarget.style.color = '#fff'; }}
+                                                onMouseLeave={(e: any) => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
+                                                title="Open in Canvas"
+                                              >
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: '14px', height: '14px' }}>
+                                                  <path d="M4.25 2A2.25 2.25 0 002 4.25v11.5A2.25 2.25 0 004.25 18h11.5A2.25 2.25 0 0018 15.75V4.25A2.25 2.25 0 0015.75 2H4.25zM14 9a1 1 0 00-1-1H7a1 1 0 00-1 1v5a1 1 0 001 1h6a1 1 0 001-1V9z" />
+                                                </svg>
+                                              </button>
+                                            </div>
                                           </div>
                                           <pre className={className} {...props}>
                                             <code className={className} {...props}>{children}</code>
                                           </pre>
+                                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                                            <CopyBtn position="bottom" />
+                                          </div>
                                         </div>
                                       );
                                     }
@@ -1280,8 +1337,46 @@ export default function ChatPage() {
                                   }
                                 }}
                               >
-                                {convertDelimitedToMarkdown(msg.content.replace(/PicoBot/g, botName))}
+                                {(() => {
+                                  // Process message content for display
+                                  let displayContent = msg.content.replace(/PicoBot/g, botName);
+                                  // Strip python:run code blocks from display (code is in Canvas)
+                                  displayContent = displayContent.replace(/```python:run[\s\S]*?```/g, '').trim();
+                                  // Extract embedded code marker if present
+                                  const codeMarkerMatch = displayContent.match(/<!--CODE:([\s\S]*?)-->/);
+                                  const embeddedCode = codeMarkerMatch
+                                    ? decodeURIComponent(escape(atob(codeMarkerMatch[1])))
+                                    : null;
+                                  // Remove the marker from display
+                                  displayContent = displayContent.replace(/<!--CODE:[\s\S]*?-->/g, '').trim();
+                                  return convertDelimitedToMarkdown(displayContent);
+                                })()}
                               </ReactMarkdown>
+                              {/* Display Code button for executed code blocks */}
+                              {(() => {
+                                const codeMarkerMatch = msg.content.match(/<!--CODE:([\s\S]*?)-->/);
+                                if (!codeMarkerMatch) return null;
+                                const embeddedCode = decodeURIComponent(escape(atob(codeMarkerMatch[1])));
+                                return (
+                                  <button
+                                    onClick={() => setActiveArtifact({ type: 'code', content: embeddedCode, language: 'python', title: 'Executed Code', id: Date.now().toString() })}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                      marginTop: '8px', padding: '6px 14px',
+                                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                                      borderRadius: '8px', color: 'rgba(255,255,255,0.7)',
+                                      fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s',
+                                    }}
+                                    onMouseEnter={(e: any) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={(e: any) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: '14px', height: '14px' }}>
+                                      <path fillRule="evenodd" d="M6.28 5.22a.75.75 0 010 1.06L2.56 10l3.72 3.72a.75.75 0 01-1.06 1.06L.97 10.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 0zm7.44 0a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L17.44 10l-3.72-3.72a.75.75 0 010-1.06z" clipRule="evenodd" />
+                                    </svg>
+                                    Display Code
+                                  </button>
+                                );
+                              })()}
                             </div>
                           ) : (
                             msg.content.replace(/PicoBot/g, botName)

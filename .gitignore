@@ -45,3 +45,6 @@ certificates
 /data/*.db*
 /bin/*.exe
 /bin/picobot
+
+# Local Netlify folder
+.netlify

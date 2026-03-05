@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         apiKey: string;
         defaultModel: string;
         preferLlmSearch?: number | null;
+        allowCodeExecution?: number | null;
     } | undefined;
 
     // Detect search capability
@@ -67,6 +68,10 @@ export async function POST(req: NextRequest) {
     }
 
     systemPrompt += `\n\n(System Note: Whenever you reference news articles, current events, statistics, or factual claims from external sources, you MUST cite your sources.)`;
+
+    if (settings?.allowCodeExecution) {
+        systemPrompt += `\n\n(System Note: CODE EXECUTION IS ENABLED. You can execute Python code on the user's local Windows machine. Wrap executable Python code in a fenced code block with the language tag \"python:run\". The code will be automatically executed and you will receive the output. The user's OS is Windows.)`;
+    }
 
     // Build the user message content array (text + images)
     const userContent: any[] = [];

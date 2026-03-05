@@ -51,12 +51,17 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { apiBaseUrl, apiKey, defaultModel, telegram, discord } = body;
+        const { apiBaseUrl, apiKey, defaultModel, telegram, discord, allowCodeExecution } = body;
 
         // Save LLM settings to SQLite
         db.prepare('UPDATE settings SET apiBaseUrl = ?, apiKey = ?, defaultModel = ? WHERE id = 1').run(
             apiBaseUrl, apiKey, defaultModel
         );
+
+        // Save code execution setting
+        if (allowCodeExecution !== undefined) {
+            db.prepare('UPDATE settings SET allowCodeExecution = ? WHERE id = 1').run(allowCodeExecution);
+        }
 
         // Sync everything to PicoBot's config.json
         const config = readPicobotConfig();

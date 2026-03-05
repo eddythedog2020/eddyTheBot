@@ -127,6 +127,7 @@ export default function ChatPage() {
     override: boolean | null;
   } | null>(null);
   const [searchOverride, setSearchOverride] = useState<boolean | null>(null);
+  const [codeExecution, setCodeExecution] = useState(false);
 
   const refreshSearchCapability = useCallback(() => {
     fetch('/api/search-capability')
@@ -184,6 +185,9 @@ export default function ChatPage() {
             });
           }
         }
+        if (stored.allowCodeExecution !== undefined) {
+          setCodeExecution(!!stored.allowCodeExecution);
+        }
         setSettingsLoaded(true);
         refreshSearchCapability();
       })
@@ -205,6 +209,7 @@ export default function ChatPage() {
           defaultModel: settings.model,
           telegram,
           discord,
+          allowCodeExecution: codeExecution ? 1 : 0,
         }),
       });
       setSaveStatus("saved");
@@ -471,6 +476,82 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: aiMsgId, role: "ai", content: fullResponse, timestamp: Date.now() }),
       });
+
+      // ── Code Execution: detect ```python:run blocks and execute them ──
+      if (codeExecution) {
+        const codeBlockRegex = /```python:run\n([\s\S]*?)```/g;
+        const codeBlocks: string[] = [];
+        let match;
+        while ((match = codeBlockRegex.exec(fullResponse)) !== null) {
+          codeBlocks.push(match[1].trim());
+        }
+
+        if (codeBlocks.length > 0) {
+          for (const code of codeBlocks) {
+            // Show a "running" indicator
+            const execMsgId = (Date.now() + 10).toString();
+            const execMsg = { id: execMsgId, role: "ai" as const, content: "⏳ *Executing code...*" };
+            addMessageToChat(targetChatId, execMsg);
+
+            try {
+              const execRes = await fetch("/api/execute", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code, language: "python" }),
+              });
+              const execData = await execRes.json();
+
+              // Format the output
+              let outputText = "";
+              if (execData.stdout) outputText += execData.stdout;
+              if (execData.stderr) outputText += (outputText ? "\n" : "") + execData.stderr;
+              if (!outputText) outputText = "(No output)";
+              const exitLabel = execData.exitCode === 0 ? "✅" : "❌";
+
+              const outputContent = `${exitLabel} **Code Output:**\n\`\`\`\n${outputText.trim()}\n\`\`\``;
+              updateMessageInChat(targetChatId, execMsgId, outputContent);
+
+              // Persist execution output
+              fetch(`/api/chats/${targetChatId}/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: execMsgId, role: "ai", content: outputContent, timestamp: Date.now() }),
+              });
+
+              // Follow-up LLM call to interpret the result
+              const followUpPayload = {
+                message: `The code execution finished. Here is the output:\n\n${outputText.trim()}\n\nExit code: ${execData.exitCode}\n\nPlease interpret this result for the user. If the task succeeded, confirm it. If there were errors, explain what went wrong and suggest a fix.`,
+                history: [
+                  ...(activeChat?.messages || []).slice(-8).map(m => ({ role: m.role, content: m.content })),
+                  { role: "ai", content: fullResponse },
+                  { role: "user", content: `[Code execution output]\n${outputText.trim()}` },
+                ],
+              };
+
+              const followUpRes = await fetch("/api/chat/stream", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(followUpPayload),
+              });
+              const followUpData = await followUpRes.json();
+              const followUpResponse = followUpData.response || '';
+
+              if (followUpResponse) {
+                const followMsgId = (Date.now() + 20).toString();
+                const followMsg = { id: followMsgId, role: "ai" as const, content: followUpResponse };
+                addMessageToChat(targetChatId, followMsg);
+                fetch(`/api/chats/${targetChatId}/messages`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: followMsgId, role: "ai", content: followUpResponse, timestamp: Date.now() }),
+                });
+              }
+            } catch (err: any) {
+              updateMessageInChat(targetChatId, execMsgId, `❌ **Execution failed:** ${err.message}`);
+            }
+          }
+        }
+      }
 
       // Auto-compaction: trigger when messages exceed threshold
       const AUTO_COMPACT_THRESHOLD = 25;
@@ -893,6 +974,49 @@ export default function ChatPage() {
                               />
                             </button>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* ── Code Execution Section ── */}
+                      <div style={{ marginTop: '24px' }}>
+                        <div className="flex items-center gap-2 mb-4">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" style={{ color: codeExecution ? '#F59E0B' : 'var(--text-tertiary)' }} viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Code Execution</h2>
+                        </div>
+
+                        <div style={{
+                          background: 'rgba(245,158,11,0.06)',
+                          borderRadius: '12px',
+                          padding: '16px',
+                          border: '1px solid rgba(245,158,11,0.15)',
+                          marginBottom: '16px',
+                        }}>
+                          <p className="text-[12px]" style={{ color: 'rgba(245,158,11,0.9)', lineHeight: '1.5' }}>
+                            ⚠️ When enabled, the AI can execute Python scripts on your machine. Only enable this if you trust the AI model and understand the risks.
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between" style={{ padding: '8px 0' }}>
+                          <div>
+                            <p className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Allow Code Execution</p>
+                            <p className="text-[11px]" style={{ color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                              Let the AI run Python code locally to complete tasks
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setCodeExecution(!codeExecution)}
+                            className="relative w-11 h-6 rounded-full transition-colors duration-200"
+                            style={{
+                              background: codeExecution ? '#F59E0B' : 'rgba(255,255,255,0.1)',
+                            }}
+                          >
+                            <span
+                              className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200"
+                              style={{ transform: codeExecution ? 'translateX(20px)' : 'translateX(0)' }}
+                            />
+                          </button>
                         </div>
                       </div>
                     </>)}

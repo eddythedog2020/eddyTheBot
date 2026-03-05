@@ -58,5 +58,6 @@ try { db.exec(`ALTER TABLE chats ADD COLUMN compactedSummary TEXT`); } catch { /
 try { db.exec(`ALTER TABLE chats ADD COLUMN compactedAtIndex INTEGER`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE settings ADD COLUMN preferLlmSearch INTEGER`); } catch { /* already exists */ }
 try { db.exec(`ALTER TABLE messages ADD COLUMN images TEXT`); } catch { /* already exists */ }
+try { db.exec(`ALTER TABLE settings ADD COLUMN allowCodeExecution INTEGER DEFAULT 0`); } catch { /* already exists */ }
 
 export default db;

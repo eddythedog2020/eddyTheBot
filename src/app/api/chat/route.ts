@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
         apiKey: string;
         defaultModel: string;
         preferLlmSearch?: number | null;
+        allowCodeExecution?: number | null;
     } | undefined;
 
     // Detect search capability
@@ -75,6 +76,10 @@ export async function POST(req: NextRequest) {
 
     // Always cite sources for news and factual claims
     promptSuffix += `\n\n(System Note: Whenever you reference news articles, current events, statistics, or factual claims that come from external sources, you MUST cite your sources. Include the publication name and URL where possible. Format citations clearly at the end of your response, e.g. "Source: [Publication Name](URL)". Never present news or factual information without attribution.)`;
+
+    if (settings?.allowCodeExecution) {
+        promptSuffix += `\n\n(System Note: CODE EXECUTION IS ENABLED. You can execute Python code on the user's local Windows machine. When you need to perform tasks like file operations, system commands, data processing, or any task that requires running code, wrap your Python code in a fenced code block with the language tag \"python:run\" like this:\n\n\`\`\`python:run\nprint(\"Hello from the user's machine!\")\n\`\`\`\n\nThe code will be automatically executed and you will receive the output. The user's OS is Windows.)`;
+    }
 
     const fullMessage = conversationContext + message + promptSuffix;
 

@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
 
         // Execute with a 30-second timeout
         const result = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
-            const child = execFile("python", [tmpFile], {
+            const pythonCmd = process.platform === "win32" ? "python" : "python3";
+            const child = execFile(pythonCmd, [tmpFile], {
                 timeout: 120000,
                 maxBuffer: 1024 * 1024, // 1MB output limit
                 windowsHide: true,

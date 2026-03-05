@@ -436,26 +436,34 @@ export default function ChatPage() {
       const data = await res.json();
       const fullResponse = data.response || '';
 
-      // Create an empty AI message, then typewriter-animate it
+      // Create AI message — skip typewriter if response contains a table
       const aiMsgId = (Date.now() + 1).toString();
-      const aiMsg = { id: aiMsgId, role: "ai" as const, content: "" };
-      addMessageToChat(targetChatId, aiMsg);
+      const hasTable = /^\s*\|.+\|/m.test(fullResponse);
 
-      // Typewriter effect: reveal tokens progressively
-      const CHARS_PER_TICK = 12;
-      const TICK_MS = 8;
-      let charIndex = 0;
+      if (hasTable) {
+        // Tables break when revealed char-by-char, show instantly
+        const aiMsg = { id: aiMsgId, role: "ai" as const, content: fullResponse };
+        addMessageToChat(targetChatId, aiMsg);
+      } else {
+        // Typewriter effect: reveal tokens progressively
+        const aiMsg = { id: aiMsgId, role: "ai" as const, content: "" };
+        addMessageToChat(targetChatId, aiMsg);
 
-      await new Promise<void>((resolve) => {
-        const interval = setInterval(() => {
-          charIndex = Math.min(charIndex + CHARS_PER_TICK, fullResponse.length);
-          updateMessageInChat(targetChatId, aiMsgId, fullResponse.slice(0, charIndex));
-          if (charIndex >= fullResponse.length) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, TICK_MS);
-      });
+        const CHARS_PER_TICK = 12;
+        const TICK_MS = 8;
+        let charIndex = 0;
+
+        await new Promise<void>((resolve) => {
+          const interval = setInterval(() => {
+            charIndex = Math.min(charIndex + CHARS_PER_TICK, fullResponse.length);
+            updateMessageInChat(targetChatId, aiMsgId, fullResponse.slice(0, charIndex));
+            if (charIndex >= fullResponse.length) {
+              clearInterval(interval);
+              resolve();
+            }
+          }, TICK_MS);
+        });
+      }
 
       // Persist the final complete message to DB (overwrite the empty placeholder)
       fetch(`/api/chats/${targetChatId}/messages`, {

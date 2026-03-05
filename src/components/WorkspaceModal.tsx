@@ -126,18 +126,20 @@ function TreeItem({ node, depth, onFileClick }: { node: FileNode; depth: number;
 /* ── Main Component ── */
 export default function WorkspaceModal({ isOpen, onClose, onOpenFile }: Props) {
     const [tree, setTree] = useState<FileNode[]>([]);
+    const [workspaceRoot, setWorkspaceRoot] = useState("");
     const [search, setSearch] = useState("");
     const [expandedProject, setExpandedProject] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [copiedPath, setCopiedPath] = useState(false);
 
     useEffect(() => {
         if (!isOpen) return;
         setLoading(true);
         fetch("/api/workspace")
             .then((r) => r.json())
-            .then((d) => { setTree(d.tree || []); setLoading(false); })
+            .then((d) => { setTree(d.tree || []); setWorkspaceRoot(d.workspace || ""); setLoading(false); })
             .catch(() => setLoading(false));
 
         // Auto-refresh every 5 seconds to pick up new projects
@@ -383,6 +385,45 @@ export default function WorkspaceModal({ isOpen, onClose, onOpenFile }: Props) {
                                                             {proj.children.length === 0 && (
                                                                 <div style={{ padding: "10px 16px", fontSize: "12px", color: "rgba(255,255,255,0.25)" }}>Empty project</div>
                                                             )}
+
+                                                            {/* Folder path bar */}
+                                                            <div style={{
+                                                                display: "flex", alignItems: "center", gap: "8px",
+                                                                margin: "6px 10px", padding: "7px 12px",
+                                                                background: "rgba(255,255,255,0.03)",
+                                                                borderRadius: "8px",
+                                                                border: "1px solid rgba(255,255,255,0.06)",
+                                                            }}>
+                                                                <span style={{ fontSize: "12px", flexShrink: 0 }}>📁</span>
+                                                                <span style={{
+                                                                    fontSize: "11px", color: "rgba(255,255,255,0.4)",
+                                                                    fontFamily: "monospace", overflow: "hidden",
+                                                                    textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1,
+                                                                    direction: "rtl", textAlign: "left",
+                                                                }}>
+                                                                    {workspaceRoot ? `${workspaceRoot}/${proj.name}` : proj.path}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const fullPath = workspaceRoot ? `${workspaceRoot}/${proj.name}` : proj.path;
+                                                                        navigator.clipboard.writeText(fullPath.replace(/\//g, "\\"));
+                                                                        setCopiedPath(true);
+                                                                        setTimeout(() => setCopiedPath(false), 2000);
+                                                                    }}
+                                                                    title="Copy folder path"
+                                                                    style={{
+                                                                        padding: "3px 8px", borderRadius: "5px",
+                                                                        border: "1px solid rgba(255,255,255,0.1)",
+                                                                        background: copiedPath ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.05)",
+                                                                        color: copiedPath ? "#4ade80" : "rgba(255,255,255,0.5)",
+                                                                        fontSize: "10px", fontFamily: "inherit",
+                                                                        cursor: "pointer", flexShrink: 0,
+                                                                        transition: "all 0.15s",
+                                                                    }}
+                                                                >
+                                                                    {copiedPath ? "✓ Copied" : "Copy path"}
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>

@@ -139,6 +139,16 @@ export default function WorkspaceModal({ isOpen, onClose, onOpenFile }: Props) {
             .then((r) => r.json())
             .then((d) => { setTree(d.tree || []); setLoading(false); })
             .catch(() => setLoading(false));
+
+        // Auto-refresh every 5 seconds to pick up new projects
+        const interval = setInterval(() => {
+            fetch("/api/workspace")
+                .then((r) => r.json())
+                .then((d) => setTree(d.tree || []))
+                .catch(() => { });
+        }, 5000);
+
+        return () => clearInterval(interval);
     }, [isOpen]);
 
     const refreshTree = () => {

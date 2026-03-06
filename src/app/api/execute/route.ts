@@ -32,11 +32,11 @@ export async function POST(req: NextRequest) {
     try {
         writeFileSync(tmpFile, code, "utf-8");
 
-        // Execute with a 120-second timeout
+        // Execute with a 300-second timeout (5 min — Netlify deploys can take a while)
         const result = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
             const pythonCmd = process.platform === "win32" ? "python" : "python3";
             const child = execFile(pythonCmd, [tmpFile], {
-                timeout: 120000,
+                timeout: 300000,
                 maxBuffer: 1024 * 1024, // 1MB output limit
                 windowsHide: true,
                 env: { ...process.env, PYTHONIOENCODING: "utf-8" },
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
                     exitCode = (error as any).code || 1;
                     // Capture timeout/killed info
                     if ((error as any).killed) {
-                        stderrStr += `\n[Process was killed - likely timeout after 120s]`;
+                        stderrStr += `\n[Process was killed - likely timeout after 300s]`;
                     }
                     if ((error as any).signal) {
                         stderrStr += `\n[Signal: ${(error as any).signal}]`;

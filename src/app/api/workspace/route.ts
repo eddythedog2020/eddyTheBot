@@ -6,6 +6,11 @@ import { validateAuth } from "@/lib/authMiddleware";
 
 const WORKSPACE = path.join(os.homedir(), ".picobot", "workspace");
 
+// Auto-create workspace directory if it doesn't exist
+if (!fs.existsSync(WORKSPACE)) {
+    fs.mkdirSync(WORKSPACE, { recursive: true });
+}
+
 type FileNode = {
     name: string;
     path: string;

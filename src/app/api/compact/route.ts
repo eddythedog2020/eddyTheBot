@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execFile } from "child_process";
-import { promisify } from "util";
-import path from "path";
 import db from "@/lib/db";
 import { validateAuth } from "@/lib/authMiddleware";
-
-const execFileAsync = promisify(execFile);
 
 export async function POST(req: NextRequest) {
     const authError = validateAuth(req);
@@ -47,33 +42,41 @@ IMPORTANT RULES:
 
     compactPrompt += `\n\n--- CONVERSATION TO SUMMARIZE ---\n\n${conversationText}\n\n--- END OF CONVERSATION ---\n\nProvide the summary now:`;
 
-    // Resolve binary path
-    const ext = process.platform === "win32" ? ".exe" : "";
-    const binPath = path.join(process.cwd(), "bin", `picobot${ext}`);
-
-    // Build args
-    const args = ["agent", "-m", compactPrompt];
-    if (settings?.defaultModel) {
-        args.push("-M", settings.defaultModel);
+    // Build the API URL
+    let apiBase = settings?.apiBaseUrl || 'http://localhost:11434/v1';
+    apiBase = apiBase.replace(/\/+$/, '');
+    if (!apiBase.endsWith('/chat/completions')) {
+        apiBase = apiBase + '/chat/completions';
     }
 
-    // Override the provider via environment variables
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    if (settings) {
-        if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
-        if (settings.apiBaseUrl) env.OPENAI_API_BASE = settings.apiBaseUrl;
-    }
+    const apiKey = settings?.apiKey || 'picobot-local';
+    const model = settings?.defaultModel || 'llama3';
 
     try {
-        const { stdout, stderr } = await execFileAsync(binPath, args, {
-            env,
-            timeout: 120000,
+        const apiResponse = await fetch(apiBase, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    { role: 'user', content: compactPrompt },
+                ],
+                stream: false,
+            }),
         });
 
-        const summary = (stdout || stderr).trim();
+        if (!apiResponse.ok) {
+            const errorText = await apiResponse.text();
+            return NextResponse.json({ summary: `Compaction failed: ${errorText}` });
+        }
+
+        const data = await apiResponse.json();
+        const summary = data.choices?.[0]?.message?.content || 'Compaction produced no output';
         return NextResponse.json({ summary });
     } catch (e: any) {
-        const fallback = e.stdout || e.stderr || e.message || "Compaction failed";
-        return NextResponse.json({ summary: fallback });
+        return NextResponse.json({ summary: `Compaction failed: ${e.message}` });
     }
 }

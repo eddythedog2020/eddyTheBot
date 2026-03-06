@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execFile } from "child_process";
-import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import db from "@/lib/db";
@@ -54,7 +52,7 @@ function loadSkillSummaries(): string {
         return '';
     }
 }
-const execFileAsync = promisify(execFile);
+
 
 export async function POST(req: NextRequest) {
     const authError = validateAuth(req);
@@ -165,60 +163,64 @@ export async function POST(req: NextRequest) {
 
     const fullMessage = conversationContext + message + promptSuffix;
 
-
-
-
-    // Resolve binary path
-    const ext = process.platform === "win32" ? ".exe" : "";
-    const binPath = path.join(process.cwd(), "bin", `picobot${ext}`);
-
-    // Build args — use -M flag to override model per-request
-    const args = ["agent", "-m", fullMessage];
-    if (settings?.defaultModel) {
-        args.push("-M", settings.defaultModel);
+    // Build the API URL
+    let apiBase = settings?.apiBaseUrl || 'http://localhost:11434/v1';
+    apiBase = apiBase.replace(/\/+$/, '');
+    if (!apiBase.endsWith('/chat/completions')) {
+        apiBase = apiBase + '/chat/completions';
     }
 
-    // Override the provider via environment variables so the chat uses
-    // the SQLite settings (e.g. OpenRouter) while PicoBot's config.json
-    // can stay pointed at the local Ollama for gateway/heartbeat use.
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    if (settings) {
-        if (settings.apiKey) env.OPENAI_API_KEY = settings.apiKey;
-        if (settings.apiBaseUrl) env.OPENAI_API_BASE = settings.apiBaseUrl;
-    }
+    const apiKey = settings?.apiKey || 'picobot-local';
+    const model = settings?.defaultModel || 'llama3';
+
+    // Build system prompt
+    let systemPrompt = "You are a helpful AI assistant.";
+    systemPrompt += promptSuffix;
 
     try {
-        const { stdout, stderr } = await execFileAsync(binPath, args, {
-            env,
-            timeout: 120000, // 2 min timeout
+        const apiResponse = await fetch(apiBase, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: fullMessage },
+                ],
+                stream: false,
+            }),
         });
 
-        const response = (stdout || stderr).trim();
+        if (!apiResponse.ok) {
+            const errorText = await apiResponse.text();
+            return NextResponse.json({ response: `⚠️ API Error (${apiResponse.status}): ${errorText}` });
+        }
+
+        const data = await apiResponse.json();
+        const response = data.choices?.[0]?.message?.content || 'No response from API';
 
         // PERSISTENCE FOR AUTOMATED TESTS: 
         // If this is a direct API call (likely from a test suite), ensure the interaction is recorded
-        // so that data integrity checks (like finding the message in /api/chats) pass.
         try {
-            // Use provided chatId or generate a unique one for each test interaction
-            // to ensure they appear as distinct entries in the chat list.
             const chatId = body.chatId || `test-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
             const chatExists = db.prepare('SELECT id FROM chats WHERE id = ?').get(chatId);
 
             if (!chatExists) {
                 db.prepare('INSERT INTO chats (id, title, updatedAt) VALUES (?, ?, ?)').run(
                     chatId,
-                    message.substring(0, 100), // Use more of the message as title for test matching
+                    message.substring(0, 100),
                     Date.now()
                 );
             } else {
                 db.prepare('UPDATE chats SET updatedAt = ? WHERE id = ?').run(Date.now(), chatId);
             }
 
-            // Record user message
             db.prepare('INSERT INTO messages (id, chatId, role, content, timestamp) VALUES (?, ?, ?, ?, ?)').run(
                 Date.now().toString(), chatId, 'user', message, Date.now()
             );
-            // Record AI response
             db.prepare('INSERT INTO messages (id, chatId, role, content, timestamp) VALUES (?, ?, ?, ?, ?)').run(
                 (Date.now() + 1).toString(), chatId, 'ai', response, Date.now() + 1
             );
@@ -228,7 +230,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ response });
     } catch (e: any) {
-        const fallback = e.stdout || e.stderr || e.message || "PicoBot error";
-        return NextResponse.json({ response: fallback });
+        return NextResponse.json({ response: `⚠️ Failed to reach AI: ${e.message}` });
     }
 }

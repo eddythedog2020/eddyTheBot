@@ -52,7 +52,7 @@ export function getCodeExecutionPrompt(workspaceDir: string): string {
         '        ["netlify", "sites:create", "--name", site_name],',
         '        input="\\n",',
         '        capture_output=True, text=True, shell=True,',
-        '        encoding="utf-8", errors="replace", timeout=90',
+        '        encoding="utf-8", errors="replace", timeout=180',
         '    )',
         '',
         '    # 6. Parse site ID (MUST strip ANSI codes first)',
@@ -67,7 +67,7 @@ export function getCodeExecutionPrompt(workspaceDir: string): string {
         '        result = subprocess.run(',
         '            ["netlify", "deploy", "--prod", "--dir", ".", "--site", site_id],',
         '            capture_output=True, text=True, shell=True,',
-        '            encoding="utf-8", errors="replace", timeout=90',
+        '            encoding="utf-8", errors="replace", timeout=180',
         '        )',
         '        if result.stdout:',
         '            print(result.stdout)',
@@ -120,7 +120,7 @@ CRITICAL NETLIFY RULES:
 2. ALWAYS pipe input="\\n" to sites:create — it needs a newline to select the default team, otherwise it blocks forever.
 3. You MUST strip ANSI codes with re.sub BEFORE regex matching — the CLI output contains escape codes that break the regex.
 4. Use the EXACT regex r'(?:Project|Site) ID:\\s*([a-f0-9-]+)' — do NOT change it.
-5. ALWAYS add timeout=90 to BOTH subprocess.run calls to prevent hanging.
+5. ALWAYS add timeout=180 to BOTH subprocess.run calls to prevent hanging.
 6. Do NOT rename variables or change the logic flow.
 7. ALWAYS wrap the entire deployment in try/except to catch and display any errors.
 8. If the first deploy attempt fails, show the full stdout and stderr so the user can see what went wrong.)`;

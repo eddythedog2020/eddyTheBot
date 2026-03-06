@@ -47,7 +47,7 @@ export function getCodeExecutionPrompt(workspaceDir: string): string {
         '    os.chdir(project_dir)',
         '',
         '    # 5. Create Netlify site (MUST pipe newline for team selection)',
-        '    site_name = f"picobot-{int(time.time())}"',
+        '    site_name = f"eddy-{int(time.time())}"',
         '    create = subprocess.run(',
         '        ["netlify", "sites:create", "--name", site_name],',
         '        input="\\n",',

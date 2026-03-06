@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     // Append instructions for Canvas
     let promptSuffix = "\n\n(System Note: If you write or modify any code, scripts, or files to fulfill this request, you MUST output the complete code in a markdown fenced code block in your final response. This is required so the Web UI can display the code in the Canvas panel.)";
 
-    // If the LLM has native search, tell PicoBot to prefer it
+    // If the LLM has native search, tell EddyTheBot to prefer it
     if (effectiveSearch) {
         promptSuffix += `\n\n(System Note: Your LLM provider (${detected.provider}) has built-in web search / grounding capabilities. When you need current information, real-time data, or need to look something up, prefer using your built-in search capability directly instead of the browser tool — it is significantly faster and more reliable.)`;
     }

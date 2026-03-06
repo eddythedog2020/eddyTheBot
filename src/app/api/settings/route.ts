@@ -5,25 +5,25 @@ import path from 'path';
 import os from 'os';
 import { validateAuth } from '@/lib/authMiddleware';
 
-const PICOBOT_CONFIG_PATH = path.join(os.homedir(), '.picobot', 'config.json');
+const EDDY_CONFIG_PATH = path.join(os.homedir(), '.picobot', 'config.json');
 
-function readPicobotConfig() {
+function readEddyConfig() {
     try {
-        return JSON.parse(fs.readFileSync(PICOBOT_CONFIG_PATH, 'utf-8'));
+        return JSON.parse(fs.readFileSync(EDDY_CONFIG_PATH, 'utf-8'));
     } catch {
         return {};
     }
 }
 
-function writePicobotConfig(config: Record<string, unknown>) {
+function writeEddyConfig(config: Record<string, unknown>) {
     try {
-        const dir = path.dirname(PICOBOT_CONFIG_PATH);
+        const dir = path.dirname(EDDY_CONFIG_PATH);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        fs.writeFileSync(PICOBOT_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+        fs.writeFileSync(EDDY_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
     } catch (e) {
-        console.error('Failed to write PicoBot config.json:', e);
+        console.error('Failed to write EddyTheBot config.json:', e);
     }
 }
 
@@ -38,9 +38,9 @@ export async function GET(req: NextRequest) {
 
     try {
         const settings = db.prepare('SELECT * FROM settings WHERE id = 1').get() as Record<string, unknown>;
-        const config = readPicobotConfig();
+        const config = readEddyConfig();
 
-        // Merge channel settings from PicoBot's config.json
+        // Merge channel settings from EddyTheBot's config.json
         const channels = config?.channels || {};
 
         // Mask sensitive values
@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
             db.prepare('UPDATE settings SET allowCodeExecution = ? WHERE id = 1').run(allowCodeExecution);
         }
 
-        // Sync everything to PicoBot's config.json
-        const config = readPicobotConfig();
+        // Sync everything to EddyTheBot's config.json
+        const config = readEddyConfig();
 
         // Provider settings
         if (!config.providers) config.providers = {};
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
             };
         }
 
-        writePicobotConfig(config);
+        writeEddyConfig(config);
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -1,4 +1,4 @@
-# PicoBot Chat 🤖
+# EddyTheBot Chat 🤖
 
 A private, self-hosted agentic chat interface and command centre for automation, personal memory, workflow management, and code execution. Deploy to a VPS, run in Docker, or use locally on Windows, macOS, or Linux — your data never leaves your infrastructure.
 
@@ -41,7 +41,6 @@ A private, self-hosted agentic chat interface and command centre for automation,
 ### Intelligence
 - **LLM Search Detection**: Auto-detects if your provider supports native web search/grounding and optimises accordingly.
 - **Canvas Panel**: Code output displayed in a side panel for easy viewing and copying.
-- **PicoBot Binary Integration**: Lightweight Go binary for bot identity and agentic tasks.
 - **Telegram & Discord Integration**: Connect to messaging platforms from the Settings panel.
 
 ## 🛠️ Tech Stack
@@ -59,10 +58,6 @@ A private, self-hosted agentic chat interface and command centre for automation,
 
 - **Node.js**: 18.x or later
 - **Python 3**: Required for code execution feature
-- **PicoBot Binary** (optional): For bot identity
-  - Windows: `bin/picobot.exe`
-  - macOS: `public/bin/picobot-darwin-amd64`
-  - Linux: `public/bin/picobot-linux-amd64`
 
 ### Quick Start (Local or VPS)
 
@@ -88,21 +83,17 @@ apt-get install -y nodejs python3 make g++ gcc nginx
 fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 
 # 3. Clone and build
-git clone <your-repo-url> /opt/picobot
-cd /opt/picobot
+git clone <your-repo-url> /opt/eddythebot
+cd /opt/eddythebot
 npm ci && npm run build
 
-# 4. Set up PicoBot binary
-mkdir -p bin
-cp public/bin/picobot-linux-amd64 bin/picobot && chmod +x bin/picobot
-
-# 5. Install PM2 and start
+# 4. Install PM2 and start
 npm install -g pm2
-PORT=3000 pm2 start npm --name picobot -- start
+PORT=3000 pm2 start npm --name eddythebot -- start
 pm2 save && pm2 startup
 
-# 6. Configure nginx reverse proxy
-cat > /etc/nginx/sites-available/picobot << 'EOF'
+# 5. Configure nginx reverse proxy
+cat > /etc/nginx/sites-available/eddythebot << 'EOF'
 server {
     listen 80;
     server_name _;
@@ -116,7 +107,7 @@ server {
     }
 }
 EOF
-ln -sf /etc/nginx/sites-available/picobot /etc/nginx/sites-enabled/picobot
+ln -sf /etc/nginx/sites-available/eddythebot /etc/nginx/sites-enabled/eddythebot
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 ```
@@ -125,8 +116,8 @@ nginx -t && systemctl restart nginx
 
 Copy the skills folder to the server:
 ```bash
-mkdir -p /root/.picobot/workspace/skills
-# scp -r ./skills/* root@your-server:/root/.picobot/workspace/skills/
+mkdir -p ./workspace/skills
+# scp -r ./skills/* root@your-server:/opt/eddythebot/workspace/skills/
 ```
 
 ## 🐳 Docker
@@ -136,8 +127,8 @@ mkdir -p /root/.picobot/workspace/skills
 docker compose up -d
 
 # Manual build
-docker build -t picobot-chat .
-docker run -d -p 3000:3000 -v picobot-data:/app/data --name picobot-chat picobot-chat
+docker build -t eddythebot .
+docker run -d -p 3000:3000 -v eddy-data:/app/data --name eddythebot eddythebot
 
 # Stop
 docker compose down        # data preserved

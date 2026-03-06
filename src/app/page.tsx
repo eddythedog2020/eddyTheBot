@@ -429,7 +429,7 @@ export default function ChatPage() {
         }
       } catch { /* ignore memory fetch errors */ }
 
-      // Route to vision endpoint if images attached, otherwise picobot
+      // Route to vision endpoint if images attached, otherwise chat
       const endpoint = imageDataUrls.length > 0 ? "/api/chat/vision" : "/api/chat";
 
       // Save uploaded images to workspace so code execution can access them
@@ -993,7 +993,7 @@ export default function ChatPage() {
                           <div>
                             <p className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Prefer LLM Search</p>
                             <p className="text-[11px]" style={{ color: 'var(--text-tertiary)', marginTop: '2px' }}>
-                              Override auto-detection — force PicoBot to use LLM search
+                              Override auto-detection — force EddyTheBot to use LLM search
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1088,7 +1088,7 @@ export default function ChatPage() {
                     </>)}
 
                     {settingsTab === 'advanced' && (<>
-                      {/* ── Update PicoBot ── */}
+                      {/* ── Update EddyTheBot ── */}
                       <div>
                         <div className="flex items-center gap-2" style={{ marginBottom: '16px' }}>
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" style={{ color: '#3B82F6' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1097,7 +1097,7 @@ export default function ChatPage() {
                             <path d="M3 22v-6h6" />
                             <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
                           </svg>
-                          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Update PicoBot</h2>
+                          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Update EddyTheBot</h2>
                         </div>
                         <p className="text-[12px]" style={{ color: 'var(--text-tertiary)', marginBottom: '16px', lineHeight: '1.5' }}>
                           Pull the latest updates from the release repository. After updating, restart the app to apply changes.

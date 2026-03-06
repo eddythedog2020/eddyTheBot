@@ -1,5 +1,5 @@
 /**
- * Auth-aware fetch wrapper for the PicoBot frontend.
+ * Auth-aware fetch wrapper for the EddyTheBot frontend.
  * 
  * On first call, it fetches the auth token from /api/auth-token (localhost-only).
  * All subsequent fetch calls include the token as an Authorization header.

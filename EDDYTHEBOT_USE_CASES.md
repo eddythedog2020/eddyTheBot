@@ -1,12 +1,12 @@
-# PicoBot Agentic Use Cases
+# EddyTheBot Agentic Use Cases
 
-A comprehensive list of use cases leveraging PicoBot's agentic abilities — its 11 built-in tools, skills system, persistent memory, heartbeat/cron scheduling, and multi-channel integrations (Telegram, Discord, WhatsApp).
+A comprehensive list of use cases leveraging EddyTheBot's agentic abilities — its 11 built-in tools, skills system, persistent memory, heartbeat/cron scheduling, and multi-channel integrations (Telegram, Discord, WhatsApp).
 
 ---
 
 ## 🔧 Core Tool Capabilities
 
-PicoBot has access to these agentic tools:
+EddyTheBot has access to these agentic tools:
 
 | Tool | What It Can Do |
 |------|---------------|
@@ -149,7 +149,7 @@ Schedule automated backups of critical directories.
 Run scheduled database maintenance tasks.
 
 ```
-"Every Sunday at 3am, run VACUUM and ANALYZE on the SQLite database at /data/picobot.db. Report the result and the new file size."
+"Every Sunday at 3am, run VACUUM and ANALYZE on the SQLite database at /data/EddyTheBot.db. Report the result and the new file size."
 ```
 
 ### 14. Disk Cleanup Automation
@@ -217,7 +217,7 @@ Auto-restart crashed services and notify you.
 ### 20. Self-Building Knowledge Base
 > **Tools:** `create_skill` + `write_memory` + `web`
 
-Ask PicoBot to research a topic and create a permanent skill from it.
+Ask EddyTheBot to research a topic and create a permanent skill from it.
 
 ```
 "Research the best practices for Docker security. Create a skill called docker-security with the key findings so you can reference it in the future."
@@ -226,7 +226,7 @@ Ask PicoBot to research a topic and create a permanent skill from it.
 ### 21. Custom API Integration Skills
 > **Tools:** `create_skill` + `web` + `exec`
 
-Teach PicoBot to interact with any API.
+Teach EddyTheBot to interact with any API.
 
 ```
 "Create a skill for interacting with the GitHub API. Include how to list repos, create issues, and check workflow status using curl with my token."
@@ -235,7 +235,7 @@ Teach PicoBot to interact with any API.
 ### 22. Runbook Automation
 > **Tools:** `create_skill` + `exec` + `filesystem`
 
-Create operational runbooks that PicoBot can execute on demand.
+Create operational runbooks that EddyTheBot can execute on demand.
 
 ```
 "Create a skill called deploy-production with the exact steps: git pull, npm install, npm run build, pm2 restart app. When I say 'deploy to prod', follow these steps."
@@ -261,7 +261,7 @@ Use WhatsApp as a natural interface to control your server.
 
 ```
 WhatsApp: "What's the CPU usage on the server?"
-PicoBot: "Current CPU: 23%, Memory: 1.2GB/4GB, Load: 0.45"
+EddyTheBot: "Current CPU: 23%, Memory: 1.2GB/4GB, Load: 0.45"
 ```
 
 ### 25. Emergency Alert System
@@ -333,7 +333,7 @@ Delegate long-running tasks to background agents.
 ### 31. Home Network Monitor
 > **Tools:** `exec` + `cron` + `message`
 
-PicoBot runs on a Pi with 256MB RAM — perfect for home monitoring.
+EddyTheBot runs on a Pi with 256MB RAM — perfect for home monitoring.
 
 ```
 "Every 5 minutes, ping all devices on 192.168.1.0/24. Alert me when a new device appears or a known device goes offline."
@@ -381,7 +381,7 @@ Track RSS feeds and deliver relevant articles.
 
 ---
 
-## Key Advantages of PicoBot
+## Key Advantages of EddyTheBot
 
 | Feature | Benefit |
 |---------|---------|
@@ -396,4 +396,4 @@ Track RSS feeds and deliver relevant articles.
 
 ---
 
-> **Note:** Most scheduled/recurring use cases require PicoBot running in **gateway mode** (`picobot gateway`) rather than single-shot mode. The gateway keeps the heartbeat, cron scheduler, and channel listeners active.
+> **Note:** Most scheduled/recurring use cases require EddyTheBot running in **gateway mode** (`EddyTheBot gateway`) rather than single-shot mode. The gateway keeps the heartbeat, cron scheduler, and channel listeners active.

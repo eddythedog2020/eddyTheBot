@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Write code to a temp file
-    const tmpFile = path.join(tmpdir(), `picobot_exec_${Date.now()}.py`);
+    const tmpFile = path.join(tmpdir(), `eddy_exec_${Date.now()}.py`);
 
     try {
         writeFileSync(tmpFile, code, "utf-8");

@@ -1,19 +1,19 @@
-# Build Instructions: PicoBot Local Chat UI
+# Build Instructions: EddyTheBot Local Chat UI
 
-> **For AntiGravity** — Step-by-step instructions to build a standalone, local-only web chat application that wraps an existing PicoBot binary. No Tauri, no desktop packaging. Everything lives in one folder and runs with `npm run dev`.
+> **For AntiGravity** — Step-by-step instructions to build a standalone, local-only web chat application that wraps an existing EddyTheBot binary. No Tauri, no desktop packaging. Everything lives in one folder and runs with `npm run dev`.
 
 ---
 
 ## Overview
 
-Build a **Next.js** web app that provides a **ChatGPT-style chat interface** backed by a local PicoBot binary. The user will supply a folder containing the PicoBot executable. The app shells out to it for every message, streaming the response back into the chat UI.
+Build a **Next.js** web app that provides a **ChatGPT-style chat interface** backed by a local EddyTheBot binary. The user will supply a folder containing the EddyTheBot executable. The app shells out to it for every message, streaming the response back into the chat UI.
 
 ### Key Differences from Eddy Pro (the reference app)
 
 | Feature                     | Eddy Pro                          | This New App                     |
 |-----------------------------|-----------------------------------|----------------------------------|
 | Desktop packaging           | Tauri .exe                        | **None** — local web server only |
-| PicoBot binary              | Bundled in `src-tauri/binaries/`  | **Lives in project root** `./bin/` |
+| EddyTheBot binary              | Bundled in `src-tauri/binaries/`  | **Lives in project root** `./bin/` |
 | Config storage              | `~/.eddypro/config.json` via IPC  | **`localStorage`** + optional `.env.local` |
 | Workspace / Code editor     | Full dual-pane code editor        | **None** — chat only             |
 | Website templates           | Yes                               | **None**                         |
@@ -43,8 +43,8 @@ That's it. No Tauri deps, no Supabase, no JSZip, no resizable panels.
 
 ```
 project-root/
-├── bin/                          # User places their PicoBot binary here
-│   └── picobot.exe               # (or picobot on Linux/Mac)
+├── bin/                          # User places their EddyTheBot binary here
+│   └── EddyTheBot.exe               # (or EddyTheBot on Linux/Mac)
 ├── src/
 │   ├── app/
 │   │   ├── globals.css           # Design system (see §3)
@@ -52,7 +52,7 @@ project-root/
 │   │   ├── page.tsx              # Main chat page
 │   │   └── api/
 │   │       └── chat/
-│   │           └── route.ts      # API route that shells out to PicoBot
+│   │           └── route.ts      # API route that shells out to EddyTheBot
 │   └── components/
 │       └── ChatContext.tsx        # Chat history state + localStorage persistence
 ├── .env.local                    # Optional: default API key & model
@@ -62,11 +62,11 @@ project-root/
 
 ### 1.4 Binary Location
 
-The PicoBot binary should be placed in `./bin/`. The API route will resolve this path:
+The EddyTheBot binary should be placed in `./bin/`. The API route will resolve this path:
 
 ```typescript
 import path from "path";
-const binPath = path.join(process.cwd(), "bin", process.platform === "win32" ? "picobot.exe" : "picobot");
+const binPath = path.join(process.cwd(), "bin", process.platform === "win32" ? "EddyTheBot.exe" : "EddyTheBot");
 ```
 
 ---
@@ -149,11 +149,11 @@ type ChatSession = {
 ```
 
 **Features:**
-- Store all chats in `localStorage` under key `"picobot-chats"`
+- Store all chats in `localStorage` under key `"EddyTheBot-chats"`
 - Auto-generate title from first user message (truncate to 25 chars)
 - `createChat()`, `addMessageToChat()`, `deleteChat()`
 - Move most recently updated chat to top of list
-- Default initial AI greeting: `"Hello! I'm PicoBot. How can I help you today?"`
+- Default initial AI greeting: `"Hello! I'm EddyTheBot. How can I help you today?"`
 - Hydration-safe: don't render children until `useEffect` has set `hasLoaded = true`
 
 ### 3.2 Layout (`src/app/layout.tsx`)
@@ -191,7 +191,7 @@ This is the core of the app — a ChatGPT-style layout:
 │ │ ──────  │  │                             │ │
 │ │ ⚙ Set.  │  │                             │ │
 │ └─────────┘  │  ┌───────────────────────┐  │ │
-│              │  │ Talk to PicoBot...  ➤ │  │ │
+│              │  │ Talk to EddyTheBot...  ➤ │  │ │
 │              │  └───────────────────────┘  │ │
 │              └─────────────────────────────┘ │
 └──────────────────────────────────────────────┘
@@ -212,18 +212,18 @@ This is the core of the app — a ChatGPT-style layout:
 - AI messages rendered with `react-markdown` for formatting
 - Bottom: Fixed input bar with textarea + circular send button
 - Auto-scroll to bottom on new messages
-- Loading state: show "PicoBot is thinking..." with a pulsing animation
+- Loading state: show "EddyTheBot is thinking..." with a pulsing animation
 
 **Inline Settings Panel (toggled from sidebar gear icon):**
 - Slides in from bottom or replaces chat area temporarily
 - Fields: API Base URL, API Key (password), Default Model
 - Uses `.form-input` and `.btn-primary` classes
-- Saves to `localStorage` under key `"picobot-settings"`
+- Saves to `localStorage` under key `"EddyTheBot-settings"`
 - Settings are sent to the API route with each chat request
 
 ### 3.4 Chat API Route (`src/app/api/chat/route.ts`)
 
-This is the backend that executes PicoBot. Use the Next.js App Router pattern:
+This is the backend that executes EddyTheBot. Use the Next.js App Router pattern:
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
@@ -242,12 +242,12 @@ export async function POST(req: NextRequest) {
 
   // Resolve binary path
   const ext = process.platform === "win32" ? ".exe" : "";
-  const binPath = path.join(process.cwd(), "bin", `picobot${ext}`);
+  const binPath = path.join(process.cwd(), "bin", `EddyTheBot${ext}`);
 
   // Build args — pass model and API config if provided
   const args = ["agent", "-m", message];
 
-  // Set environment variables for the PicoBot process
+  // Set environment variables for the EddyTheBot process
   const env = { ...process.env };
   if (settings?.openaiApiKey) env.OPENAI_API_KEY = settings.openaiApiKey;
   if (settings?.openaiApiBase) env.OPENAI_API_BASE = settings.openaiApiBase;
@@ -262,13 +262,13 @@ export async function POST(req: NextRequest) {
     const response = (stdout || stderr).trim();
     return NextResponse.json({ response });
   } catch (e: any) {
-    const fallback = e.stdout || e.stderr || e.message || "PicoBot error";
+    const fallback = e.stdout || e.stderr || e.message || "EddyTheBot error";
     return NextResponse.json({ response: fallback });
   }
 }
 ```
 
-> **Important**: The API route passes settings as environment variables to PicoBot. Alternatively, if PicoBot reads from `~/.picobot/config.json`, you can write that file from the settings panel instead. Check how the binary actually consumes its configuration and adjust accordingly.
+> **Important**: The API route passes settings as environment variables to EddyTheBot. Alternatively, if EddyTheBot reads from `~/.EddyTheBot/config.json`, you can write that file from the settings panel instead. Check how the binary actually consumes its configuration and adjust accordingly.
 
 ---
 
@@ -291,7 +291,7 @@ const sendMessage = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: input.trim(),
-        settings: JSON.parse(localStorage.getItem("picobot-settings") || "{}"),
+        settings: JSON.parse(localStorage.getItem("EddyTheBot-settings") || "{}"),
       }),
     });
 
@@ -299,7 +299,7 @@ const sendMessage = async () => {
     const aiMsg = { id: (Date.now() + 1).toString(), role: "ai", content: data.response };
     addMessageToChat(activeChatId, aiMsg);
   } catch (err) {
-    const errMsg = { id: (Date.now() + 1).toString(), role: "ai", content: "⚠️ Failed to reach PicoBot. Is the binary in `./bin/`?" };
+    const errMsg = { id: (Date.now() + 1).toString(), role: "ai", content: "⚠️ Failed to reach EddyTheBot. Is the binary in `./bin/`?" };
     addMessageToChat(activeChatId, errMsg);
   } finally {
     setIsLoading(false);
@@ -312,7 +312,7 @@ const sendMessage = async () => {
 - Textarea with auto-resize (up to 200px max height)
 - **Enter** sends, **Shift+Enter** adds newline
 - Disabled while loading
-- Placeholder: `"Talk to PicoBot..."`
+- Placeholder: `"Talk to EddyTheBot..."`
 
 ### 4.3 Message Rendering
 
@@ -335,7 +335,7 @@ const sendMessage = async () => {
 
 ## 5. Settings Storage
 
-Store settings in `localStorage` under key `"picobot-settings"`:
+Store settings in `localStorage` under key `"EddyTheBot-settings"`:
 
 ```json
 {
@@ -345,15 +345,15 @@ Store settings in `localStorage` under key `"picobot-settings"`:
 }
 ```
 
-These are read on every chat request and sent to the API route, which passes them as environment variables to the PicoBot process.
+These are read on every chat request and sent to the API route, which passes them as environment variables to the EddyTheBot process.
 
 ---
 
 ## 6. Running the App
 
 ```bash
-# 1. Place PicoBot binary
-cp /path/to/picobot.exe ./bin/picobot.exe
+# 1. Place EddyTheBot binary
+cp /path/to/EddyTheBot.exe ./bin/EddyTheBot.exe
 
 # 2. Install deps
 npm install
@@ -415,6 +415,6 @@ For design and implementation reference, study these files from the Eddy Pro pro
 |------|-------------------|
 | `src/app/globals.css` | **Copy the entire design system** — CSS variables, scrollbar, glass-panel, chat classes, input styles, message styles, animations |
 | `src/components/ChatContext.tsx` | **Copy the chat state management pattern** — localStorage persistence, session management, auto-titling |
-| `src/pages/api/chat.ts` | **Reference the PicoBot integration** — how to shell out to the binary and parse responses |
+| `src/pages/api/chat.ts` | **Reference the EddyTheBot integration** — how to shell out to the binary and parse responses |
 | `src/app/page.tsx` | **Reference the chat UI** — message rendering, input handling, auto-scroll, loading states (ignore workspace/code editor parts) |
 | `src/app/settings/page.tsx` | **Reference the settings form styling** — form inputs using CSS variables, section headings, save button |

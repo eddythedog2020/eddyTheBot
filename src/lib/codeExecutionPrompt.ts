@@ -8,6 +8,10 @@
  */
 
 export function getCodeExecutionPrompt(workspaceDir: string): string {
+    // Detect OS for correct system prompt
+    const osName = process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux';
+    const tempFallback = process.platform === 'win32' ? 'C:\\\\temp' : '/tmp';
+
     // Use an array join to build the Netlify template cleanly
     // Each line is exactly what the LLM should see as Python code
     const netlifyLines = [
@@ -15,7 +19,8 @@ export function getCodeExecutionPrompt(workspaceDir: string): string {
         '',
         'try:',
         '    # 1. Create isolated deploy directory (MUST be in TEMP, never in workspace)',
-        '    deploy_dir = os.path.join(os.environ.get("TEMP", "C:\\\\temp"), "netlify-deploys")',
+        `    deploy_dir = os.path.join(os.environ.get("TEMP", os.environ.get("TMPDIR", "${tempFallback}")), "netlify-deploys")`,
+
         '    os.makedirs(deploy_dir, exist_ok=True)',
         '',
         '    # 2. Create project directory',
@@ -82,13 +87,13 @@ export function getCodeExecutionPrompt(workspaceDir: string): string {
 
     const netlifyTemplate = netlifyLines.join('\n');
 
-    return `(System Note: CODE EXECUTION IS ENABLED. You can execute Python code on the user's local Windows machine. When you need to perform tasks like file operations, system commands, data processing, or any task that requires running code, wrap your Python code in a fenced code block with the language tag "python:run" like this:
+    return `(System Note: CODE EXECUTION IS ENABLED. You can execute Python code on the user's local ${osName} machine. When you need to perform tasks like file operations, system commands, data processing, or any task that requires running code, wrap your Python code in a fenced code block with the language tag "python:run" like this:
 
 \`\`\`python:run
 print("Hello from the user's machine!")
 \`\`\`
 
-The code will be automatically executed and you will receive the output. The user's OS is Windows.
+The code will be automatically executed and you will receive the output. The user's OS is ${osName}.
 
 IMPORTANT RESPONSE ORDERING: When using code execution, ALWAYS structure your response in this exact order:
 1. First, briefly explain what you are going to do in plain text.
